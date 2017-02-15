@@ -16,11 +16,17 @@ module.exports = {
                     creep.moveTo(spawn);
                 }
             } else {
-                const storageTarget = tStorage.findBestStorage(creep.pos);
+                const storageTarget = tStorage.findClosestAncillaryStorage(creep.pos);
                 if(storageTarget) {
-                    if(creep.transfer(storageTarget) === ERR_NOT_IN_RANGE) {
-                        creep.moveTo(storageTarget);
+                    // TODO optimize
+                    for(let resource in creep.carry) {
+                        if(creep.transfer(storageTarget, resource) === ERR_NOT_IN_RANGE) {
+                            creep.moveTo(storageTarget);
+                        }
                     }
+
+                } else {
+                    console.log('no storage left');
                 }
             }
             return;
@@ -89,14 +95,22 @@ module.exports = {
 				        // will fill up target, delete from memory
 				        delete creep.memory.transportDestination;
                     }
+                    // TODO optimize
+                    for(let resource in creep.carry) {
+                        const res = creep.transfer(target, resource);
+                        if(res === ERR_NOT_IN_RANGE) {
+                            creep.moveTo(target);
+                        } else if(res === ERR_FULL) {
+                            delete creep.memory.transportDestination;
+                        }
 
-				    const res = creep.transfer(target, RESOURCE_ENERGY);
+                        if(res !== OK) {
+                            break;
+                        }
+                    }
+
 				    
-				    if(res === ERR_NOT_IN_RANGE) {
-				        creep.moveTo(target);
-				    } else if(res === ERR_FULL) {
-				        delete creep.memory.transportDestination;
-				    }
+
 				} else {
 				    // find destination
 				    const target = tStorage.findBestStorage(creep.pos);

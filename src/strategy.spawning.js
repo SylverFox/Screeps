@@ -33,6 +33,7 @@ module.exports = {
 		        body = sCreepBody.run('miner', maxEnergy);
 		        return [true, body, {role: 'miner'}];
 		    } else if(creepCount['miner'] === 0) {
+		    	// todo fix this spawning
 		        // no miners, spawn immediately
                 body = sCreepBody.run('miner', room.energyAvailable);
                 return [true, body, {role: 'miner'}];

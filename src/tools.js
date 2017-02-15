@@ -8,13 +8,7 @@ module.exports = {
     },
 
     repairEffectiveness: function(tower, target) {
-        const towerPos = tower.pos;
-        const targetPos = target.pos;
-
-        const dx = Math.abs(towerPos.x - targetPos.x);
-        const dy = Math.abs(towerPos.y - targetPos.y);
-
-        const range = Math.floor(Math.sqrt(Math.pow(dx,2) + Math.pow(dy,2)));
+        const range = this.rangeTo(tower.pos, target.pos);
 
         if(range <= 5) {
             return 800;
@@ -23,5 +17,15 @@ module.exports = {
         } else {
             return 800 - (range-5)*40;
         }
+    },
+
+    // todo replace with inRangeTo
+    rangeTo: function(sourcePos, targetPos) {
+        const dx = Math.abs(sourcePos.x - targetPos.x);
+        const dy = Math.abs(sourcePos.y - targetPos.y);
+
+        const range = Math.sqrt(Math.pow(dx,2) + Math.pow(dy,2));
+
+        return Math.floor(range);
     }
 };

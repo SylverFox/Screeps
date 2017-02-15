@@ -79,5 +79,21 @@ module.exports = {
         if(closestSource) {
             return closestSource;
         }
+    },
+
+    findAvailableMiningSource: function(creep) {
+        const sourcesUsed = _.filter(Game.creeps, c =>
+            c.memory.role === 'miner' && c.id != creep.id && c.memory.harvestTarget
+        ).map(c => c.memory.harvestTarget);
+
+        if(creep.room.memory.sources) {
+            const sources = _.filter(creep.room.memory.sources,
+                s => s.container && !sourcesUsed.includes(s.container)
+            ).map(s => s.container);
+
+            if (sources.length) {
+                return sources[0];
+            }
+        }
     }
 };

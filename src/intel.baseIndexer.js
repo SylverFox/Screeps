@@ -55,9 +55,9 @@ module.exports = {
 
             const storagePercentage = stored / max;
             if(storagePercentage < 0.10 && roomMemory.maxBaseBuilders > 2) {
-                roomMemory.maxBaseBuilders--;
+                //roomMemory.maxBaseBuilders--;
             } else if(storagePercentage > 0.25) {
-                roomMemory.maxBaseBuilders++;
+                //roomMemory.maxBaseBuilders++;
             }
         }
 
@@ -81,10 +81,10 @@ module.exports = {
 
         if(conts) {
             // increase when there is at least one container almost full
-            roomMemory.maxTransporters++;
+            //roomMemory.maxTransporters++;
         } else if(!drops && roomMemory.maxTransporters > 2) {
             // decrease when there are no almost full containers and no dropped resources
-            roomMemory.maxTransporters--;
+            //roomMemory.maxTransporters--;
         }
 
         //update new memory
