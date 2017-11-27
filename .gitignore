@@ -1,3 +1,5 @@
-.idea/
 node_modules/
-Gruntfile.js
+out/
+out
+
+gruntfile.js
