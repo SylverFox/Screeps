@@ -1,9 +1,8 @@
 exports.findCollectTargets = function(base, exclude = [], minEnergy = 50) {
-  const dropped = base.find(FIND_DROPPED_RESOURCES).filter(d => !exclude.includes(d.id))
   const sourceContainers = base.sources.map(s => s.container)
     .filter(s => s && s.store[RESOURCE_ENERGY] > minEnergy && !exclude.includes(s.id))
 
-  const targets = dropped.concat(sourceContainers)
+  const targets = sourceContainers
   return targets
 }
 

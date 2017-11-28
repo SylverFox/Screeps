@@ -1,4 +1,6 @@
-require('./prototypes')
+require('./prototypes.room')
+require('./prototypes.source')
+require('./prototypes.storage')
 require('./constants')
 
 const Base = require('./base')

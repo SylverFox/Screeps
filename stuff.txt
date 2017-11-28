@@ -21,3 +21,20 @@ Where:
     K = terrain factor (0.5x for road, 1x for plain, 5x for swamp)
     W = creep weight (Number of body parts, excluding MOVE and empty CARRY parts)
     M = number of MOVE parts
+
+
+Miner: [W,W,W,W,W,M] -> cost: 550
+move empty: ceil(T*W/M) = 5 tick/square
+then: mine 10/t
+
+transporter: 8*[C,C,M] -> cost: 1200
+move empty: 1 tick/square
+move full: ceil(T*C/M) tick/square -> 1 tick/square
+
+move * 2 = 40 * 2 = 80 ticks
+miner makes 800 energy in ticks, transporter has 16*50=800
+
+Transporter: need 1 set (C,C,M) for every 5 steps a miner is away from storage
+
+
+JSON.stringify(Game.getObjectById('f0faa9f518c95b6').pos.findPathTo(Game.getObjectById('2801ad8685208c6').pos,{ignoreCreeps: true}).length)

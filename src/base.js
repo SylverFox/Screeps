@@ -31,6 +31,7 @@ module.exports = class Base extends Room {
     // work towers
     towermaster.work(this)
 
+    /*
     // handle invasions
     for (let i in this.memory.invaders) {
       const invader = this.memory.invaders[i]
@@ -40,6 +41,7 @@ module.exports = class Base extends Room {
     if(this.hostileCreeps.length) {
       // TODO
     }
+    */
 
     if (Game.time % CREEP_SPAWN_INTERVAL === 0) this.handleCreepSpawning()
     if (Game.time % EXPANSION_INTERVAL === 0) this.handleExpansion()
@@ -81,13 +83,15 @@ module.exports = class Base extends Room {
   }
 
   creepTargetsByType(creepType) {
-    // TODO cache this?
-    return this.creeps.filter(c => c instanceof creepType).map(c => c.target)
+    return this.creeps.filter(c => c instanceof creepType).map(c =>
+      c.target
+    ).filter(c => c)
   }
 
   creepJobsByType(creepType) {
-    // TODO cache this?
-    return this.creeps.filter(c => c instanceof creepType).map(c => c.job)
+    return this.creeps.filter(c => c instanceof creepType).map(c =>
+      c.job
+    ).filter(c => c)
   }
 
   get spawns() {
@@ -156,7 +160,7 @@ module.exports = class Base extends Room {
 
   get myConstructionSites() {
     if (!this._myConstructionSites) {
-      const nearSites = this.nearRooms.map(r => r.find(FIND_MY_CONSTRUCTION_SITES)).reduce((a, b) => a.concat(b), [])
+      const nearSites = this.rooms.map(r => r.find(FIND_MY_CONSTRUCTION_SITES)).reduce((a, b) => a.concat(b), [])
       this._myConstructionSites = this.find(FIND_MY_CONSTRUCTION_SITES).concat(nearSites)
     }
     return this._myConstructionSites
@@ -183,76 +187,51 @@ module.exports = class Base extends Room {
     return this._expense
   }
 
-  get adjacentRooms() {
-    if (!this._adjacentRooms) {
-      const exits = Game.map.describeExits(this.name)
-      this._adjacentRooms = Object.keys(exits).map(e => {
-        return {
-          room: exits[e],
-          type: Game.rooms[exits[e]] ? Game.rooms[exits[e]].roomType : ROOM_TYPE_FOGGED
-        }
-      })
+  get rooms() {
+    if(!this._rooms) {
+      this._rooms = [
+        this.topleft, this.top, this.topright,
+        this.left, this.name, this.right,
+        this.bottomleft, this.bottom, this.bottomright
+      ].filter(r => r).map(r => Game.rooms[r]).filter(r =>
+        r && [ROOM_TYPE_FARM, ROOM_TYPE_MY_OUTPOST, ROOM_TYPE_MY_BASE].includes(r.roomType)
+      )
     }
-    return this._adjacentRooms
-  }
-
-  get nearRooms() {
-    if(!this._nearRooms) {
-      const adjc = this.adjacentRooms.map(r => Game.rooms[r.room]).filter(r => r)
-      const diag = [this.topleft, this.topright, this.bottomleft, this.bottomright].map(r => Game.rooms[r]).filter(r => r)
-      this._nearRooms = adjc.concat(diag)
-    }
-    return this._nearRooms
+    return this._rooms
   }
 
   get roomsToScout() {
     if(!this._roomsToScout) {
-      const adjcFogged = this.adjacentRooms.filter(ar => ar.type === ROOM_TYPE_FOGGED)
-        .map(ar => ar.room)
-      const diagFogged = [this.topleft, this.topright, this.bottomleft, this.bottomright].filter(r =>
-        !Game.rooms[r]
-      )
-      this._roomsToScout = adjcFogged.concat(diagFogged).filter(r => r)
+      this._roomsToScout = [
+        this.top, this.right, this.bottom, this.left,
+        this.topleft, this.topright, this.bottomright, this.bottomleft
+      ].filter(r => r && !Game.rooms[r])
     }
     return this._roomsToScout
   }
 
-  get outposts() {
-    if(!this._outposts) {
-      this._outposts = this.adjacentRooms.filter(ar => ar.type === ROOM_TYPE_MY_OUTPOST)
-        .map(r => Game.rooms[r.room].outpost)
+  get roomsToClaim() {
+    if(!this._roomsToClaim) {
+      this._roomsToClaim = [
+        this.top, this.right, this.bottom, this.left
+      ].map(r => Game.rooms[r]).filter(r => r && r.controller).filter(r => {
+          const res = r.controller.reservation
+          return res ? (
+            res.username === USERNAME && res.ticksToEnd < (0.8 * CONTROLLER_RESERVE_MAX)
+          ) : true
+      })
     }
-    return this._outposts
+    return this._roomsToClaim
   }
 
-  get farms() {
-    if(!this._farms) {
-      this._farms = this.adjacentRooms.filter(ar => ar.type === ROOM_TYPE_FARM)
-        .map(r => Game.rooms[r.room])
-    }
-    return this._farms
-  }
-
-  get farmSources() {
-    if(!this._farmSources) {
-      this._farmSources = this.farms.map(f => f.sources).reduce((a, b) => a.concat(b), [])
-    }
-    return this._farmSources
-  }
-
-  get outpostSources() {
-    if(!this._outpostSources) {
-      this._outpostSources = this.outposts.map(o => o.sources).reduce((a, b) => a.concat(b), [])
-    }
-    return this._outpostSources
-  }
-
-  get outsideSources() {
-    return this.farmSources.concat(this.outpostSources)
+  get baseSources() {
+    if(!this._baseSources)
+      this._baseSources = this.rooms.map(r => r.sources).reduce((a, b) => a.concat(b), [])
+    return this._baseSources
   }
 
   get hostileCreeps() {
-    return this.nearRooms.map(r => r.find(FIND_HOSTILE_CREEPS)).reduce((a,b) => a.concat(b), [])
+    return this.rooms.map(r => r.find(FIND_HOSTILE_CREEPS)).reduce((a,b) => a.concat(b), [])
   }
 
   // spawns, extensions, towers
@@ -272,8 +251,8 @@ module.exports = class Base extends Room {
         s.structureType === STRUCTURE_CONTAINER &&
         !this.tertiaryStorages.includes(s)
       )
-      if(this.storage)
-        this._secondaryStorages.push(this.storage)
+      //if(this.storage)
+      //  this._secondaryStorages.push(this.storage)
     }
     return this._secondaryStorages
   }
@@ -284,5 +263,32 @@ module.exports = class Base extends Room {
       this._tertiaryStorages = this.sources.map(s => s.container).filter(s => s)
     }
     return this._tertiaryStorages
+  }
+
+  get drops() {
+    if(!this._drops) {
+      this._drops = this.find(FIND_DROPPED_RESOURCES)
+    }
+    return this._drops
+  }
+
+  get storeTargets() {
+    if(!this._storeTargets) {
+      const primary = this.primaryStorages.filter(s => s.freeSpace)
+      const secondary = this.secondaryStorages.filter(s => s.freeSpace)
+      if(primary.length)
+        this._storeTargets = primary
+      else if(secondary)
+        this._storeTargets = secondary
+    }
+    return this._storeTargets
+  }
+
+  get collectTargets() {
+
+  }
+
+  get witdrawTargets() {
+    // TODO
   }
 }

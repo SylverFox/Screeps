@@ -69,7 +69,7 @@ exports.buildCreep = function(role, energy, maxEnergy) {
 }
 
 function simpleHarvester(maxEnergy) {
-  return [MOVE, WORK, CARRY]
+  return [MOVE, MOVE, WORK, CARRY, CARRY]
 }
 
 function mechanic(maxEnergy) {

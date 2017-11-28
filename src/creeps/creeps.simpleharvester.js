@@ -4,10 +4,6 @@ const targetfinder = require('./utils.targetfinder')
 module.exports = class SimpleHarvester extends BaseCreep {
   constructor(creep) {
     super(creep)
-
-    this.HARVEST = 'harvest'
-    this.STORE = 'store'
-    this.BUILD = 'build'
   }
 
   performJob() {

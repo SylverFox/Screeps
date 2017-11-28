@@ -57,11 +57,11 @@ module.exports = class OutpostHarvester extends BaseCreep {
 
     if(this.job === this.HARVEST) {
       const exclude = this.home.creepTargetsByType(OutpostHarvester)
-      this.target = this.home.outsideSources.find(s => s.room === this.room)
+      this.target = this.home.sources.find(s => s.room === this.room)
       if(!this.target)
-        this.target = this.home.outsideSources.find(s => !exclude.includes(s))
+        this.target = this.home.sources.find(s => !exclude.includes(s))
       if(!this.target)
-        this.target = this.home.outsideSources.find(s => s)
+        this.target = this.home.sources.find(s => s)
     } else if(this.job === this.BUILD) {
       this.target = this.pos.findClosestByPath(this.room.find(FIND_MY_CONSTRUCTION_SITES))
     } else if(this.job === this.STORE) {

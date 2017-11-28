@@ -4,13 +4,6 @@ const targetfinder = require('./utils.targetfinder')
 exports.ERR_NEED_MORE_ENERGY = -1
 exports.ERR_NO_CREEP_TO_SPAWN = -2
 
-/*
- * Priority 1: if no creeps, use simple harvesters
- * Priority 2: get economy up, miners and transporters (equal amount)
- * Priority 3: get builders if construction is needed (max ?)
- * Priority 4: get upgraders (max ?)
- * Priority 5: get builders as repairers
- */
 exports.run = function(base) {
   if (base.creeps.length < 2) {
     // PANIC!! everybody dead
@@ -22,21 +15,15 @@ exports.run = function(base) {
   const rolesNeeded = getRolesNeeded(roleCounts, base)
   const nextCreep = getNextRoleNeeded(roleCounts, rolesNeeded)
 
-  Memory.nextCreep = nextCreep
-
   if(!nextCreep)
     return exports.ERR_NO_CREEP_TO_SPAWN
 
   const newCreep = Creeps.buildCreep(nextCreep, base.energyAvailable, base.energyCapacityAvailable)
 
-  if(newCreep === Creeps.ERR_NOT_ENOUGH_ENERGY) {
+  if(newCreep === Creeps.ERR_NOT_ENOUGH_ENERGY)
     return exports.ERR_NEED_MORE_ENERGY
-  } else if(newCreep === Creeps.ERR_INVALID_ROLE) {
-    console.log('Invalid role given by strategy.spawning')
-  } else {
+  else
     return newCreep
-  }
-
 }
 
 function getRoleCounts(creeps) {
@@ -89,11 +76,10 @@ function getRolesNeeded(roleCounts, base) {
 
   if(base.controller.level >= 4) {
 
-    rolesNeeded[Creeps.OUTPOST_HARVESTER] = base.farmSources.length + base.outpostSources.length
+    //rolesNeeded[Creeps.OUTPOST_HARVESTER] = base.farmSources.length + base.outpostSources.length
 
-    rolesNeeded[Creeps.CLAIMER] = base.farms.length + base.outposts.filter(o =>
-      o.controller.reservation.ticksToEnd < (0.8 * CONTROLLER_RESERVE_MAX)
-    ).length
+    rolesNeeded[Creeps.CLAIMER] = base.roomsToClaim.length
+
     if(Memory.nextBase)
       rolesNeeded[Creeps.CLAIMER]++
   }

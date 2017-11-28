@@ -5,76 +5,73 @@ module.exports = class Transporter extends BaseCreep {
   constructor(creep) {
     super(creep)
 
-    this.COLLECT = 1
-    this.STORE = 2
-  }
-
-  performJob() {
-    // find a new job if undefined and possible, otherwise do nothing
-    if(!this.job && !this.newJob()) return
-    // find a new target if undefined and possible, otherwise do nothing
-    if (!this.target && !this.newTarget()) return
-
-    // try to perform task base on job
-    let result, offset
-    if (this.job === this.COLLECT) {
-      const targetEnergy = this.target instanceof Resource ? this.target.amount :
-        this.target.filledSpace
-      offset = Math.min(this.freeSpace(), targetEnergy)
-
-      result = this.target instanceof Resource ? this.pickup(this.target) :
-        this.withdraw(this.target, RESOURCE_ENERGY)
-    } else if(this.job === this.STORE) {
-      offset = -1 * Math.min(this.filledSpace(), this.target.freeSpace)
-
-      result = this.transfer(this.target, RESOURCE_ENERGY)
-    }
-    //this.say(result)
-
-    // take action based on result of job
-    if(result === OK) {
-      // action was performed, change internal state of the creep and try to do more
-      this.carryOffset += offset
-      this.newJob()
-      //this.performJob()
-    } else if(result === ERR_NOT_IN_RANGE) {
-      this.moveToTarget()
-    } else if(result === ERR_NOT_ENOUGH_RESOURCES || result === ERR_FULL || result === ERR_INVALID_TARGET) {
-      // invalid target, choose new target and try again if found
-      //if(this.newTarget())
-        //this.performJob()
-      this.newJob()
-    } else {
-      // uknown result, for debugging
-      this.say(result)
-    }
+    this.enableHurry = true
   }
 
   newJob() {
-    // TODO balance on targets
-    if (this.empty())
-      this.job = this.COLLECT
-    else
-      this.job = this.STORE
+    const collectTargets = targetfinder.findCollectTargets(this.home, this.excludedTargets)
+    const storeTargets = this.home.storeTargets.filter(s => !this.excludedTargets.includes(s.id))
+    const drops = this.home.drops.filter(d => !this.excludedTargets.includes(d.id))
 
-    this.target = null
-    //this.performJob()
+    if (this.empty()) {
+      if(drops.length) {
+        this.job = this.PICKUP
+        this.target = this.pos.findClosestByPath(drops)
+      }
+      else if(collectTargets.length) {
+        this.job = this.COLLECT_ENERGY
+        this.target = this.pos.findClosestByPath(collectTargets)
+      } else if(this.home.storage) {
+        this.job = this.COLLECT_ENERGY
+        this.target = this.home.storage
+      }
+    } else if(this.full()) {
+      if(storeTargets.length) {
+        this.job = this.STORE_ENERGY
+        this.target = this.pos.findClosestByPath(storeTargets)
+      }
+    } else {
+      const drpT = this.pos.findClosestByPath(drops)
+      const rangeDrp = drpT ? this.pos.getRangeTo(drpT.pos) : Infinity
+      const colT = this.pos.findClosestByPath(collectTargets)
+      const rangeCol = colT ? this.pos.getRangeTo(colT.pos) : Infinity
+      const strT = this.pos.findClosestByPath(storeTargets)
+      const rangeStr = strT ? this.pos.getRangeTo(strT.pos) : Infinity
+      if(rangeDrp < rangeStr) {
+        this.job = this.PICKUP
+        this.target = drpT
+      } else if(rangeCol < rangeStr) {
+        this.job = this.COLLECT_ENERGY
+        this.target = colT
+      } else {
+        this.job = this.STORE_ENERGY
+        this.target = strT
+      }
+    }
+
+    // make sure this target is not chosen again in this tick
+    if(this.target)
+      this.excludedTargets.push(this.target.id)
+  }
+
+  handleJobOK() {
+    let offset = 0
+    if(this.job === this.PICKUP) {
+      offset = Math.min(this.freeSpace(), this.target.amount)
+    } else if (this.job === this.COLLECT_ENERGY) {
+      offset = Math.min(this.freeSpace(), this.target.filledSpace)
+    } else if(this.job === this.STORE_ENERGY) {
+      offset = -1 * Math.min(this.filledSpace(), this.target.freeSpace)
+    }
+
+    this.carryOffset = offset + (this.carryOffset || 0)
     return true
   }
 
-  newTarget() {
-    if(this.job === this.COLLECT) {
-      const exclude = this.home.creepTargetsByType(Transporter)
-      this.target = targetfinder.findClosestCollectTarget(this, exclude)
-    } else if(this.job === this.STORE) {
-      this.target = targetfinder.findClosestStoringDeposit(this)
+  get excludedTargets() {
+    if(!this._excludedTargets) {
+      this._excludedTargets = this.home.creepTargetsByType(Transporter)
     }
-
-    if(!this.target) {
-      this.say('zzz')
-      return false
-    } else {
-      return true
-    }
+    return this._excludedTargets
   }
 }

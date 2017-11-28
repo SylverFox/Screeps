@@ -3,32 +3,26 @@ const BaseCreep = require('./creeps.basecreep')
 module.exports = class Miner extends BaseCreep {
   constructor(creep) {
     super(creep)
-
-    this.MINING = 'mining'
   }
 
-  performJob(newJobCallback) {
-    if(!this.job) {
-      this.getMineTarget()
-      if(!this.job)
-        return
-    }
-
-    // move to source and container if possible
-    const moveResult = this.container ? this.moveToTarget(this.container, 0) :
-      this.moveToTarget(this.target)
-    if((moveResult & this.TARGET_IN_RANGE) === this.TARGET_IN_RANGE) {
-      this.harvest(this.target)
-    }
-  }
-
-  getMineTarget() {
-    const exclude = this.home.creeps.filter(c => c instanceof Miner).map(c => c.memory.target)
-    const sources = this.home.sources.filter(s => !exclude.includes(s.id) && s.container)
+  newJob() {
+    const exclude = this.home.creepTargetsByType(Miner).map(s => s.id)
+    const sources = this.home.sources.filter(s =>
+      !exclude.includes(s.id) && s.container
+    )
     if(sources.length) {
-      this.job = this.MINING
+      this.job = this.HARVEST
       this.target = sources[0]
+      return true
     }
+    return false
+  }
+
+  handleJobOK() {
+    if(!this.pos.isEqualTo(this.container.pos))
+      this.moveTo(this.container.pos)
+
+    return false // continue forever
   }
 
   get container() {
