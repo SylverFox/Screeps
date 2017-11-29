@@ -6,23 +6,42 @@ module.exports = class Miner extends BaseCreep {
   }
 
   newJob() {
-    const exclude = this.home.creepTargetsByType(Miner).map(s => s.id)
-    const sources = this.home.sources.filter(s =>
+    const exclude = this.home.getCreepTargetsByType(Miner).map(s => s.id)
+    const sources = this.home.baseSources.filter(s =>
       !exclude.includes(s.id) && s.container
     )
     if(sources.length) {
       this.job = this.HARVEST
       this.target = sources[0]
-      return true
     }
-    return false
   }
 
   handleJobOK() {
-    if(!this.pos.isEqualTo(this.container.pos))
+    if(this.container && !this.pos.isEqualTo(this.container.pos))
       this.moveTo(this.container.pos)
 
     return false // continue forever
+  }
+
+  handleEOL() {
+    /*
+    const ticksToSpawn = this.body.length * 3
+    if(this.ticksToLive <= ticksToSpawn) {
+      const creepInfo = {
+        body: [MOVE, WORK, WORK, WORK, WORK, WORK],
+        memory: {
+          role: this.role,
+          job: this.job,
+          target: this.target.id
+        }
+      }
+      if(!this.home.memory.prioSpawn)
+        this.home.memory.prioSpawn = []
+
+      this.home.memory.prioSpawn.push(creepInfo)
+      return true
+    }
+    */
   }
 
   get container() {

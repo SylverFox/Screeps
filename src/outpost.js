@@ -15,11 +15,11 @@ module.exports = class Outpost extends Room {
     const constructionJobs = sOutpostExpansion.run(this)
     if (constructionJobs && constructionJobs.length) {
       for (let job of constructionJobs) {
-        const result = new RoomPosition(...job.pos).createConstructionSite(job.type)
+        const result = job.pos.createConstructionSite(job.type)
         if (result === OK)
-          console.log('new construction job at (', job.pos[0], ',', job.pos[1], ') of type ', job.type)
+          console.log('new construction job at (', job.pos.x, ',', job.pos.y, ') of type ', job.type)
         else
-          console.log('new construction job', job.type, 'failed at (', job.pos[0], ',', job.pos[1], '), reason: ' + result)
+          console.log('new construction job', job.type, 'failed at (', job.pos.x, ',', job.pos.y, '), reason: ' + result)
         }
     }
   }

@@ -50,6 +50,7 @@ module.exports = class Base extends Room {
 
   handleCreepSpawning() {
     const newCreep = sSpawning.run(this)
+
     if (newCreep === sSpawning.ERR_NEED_MORE_ENERGY) {
       this.savingEnergy = true
     } else if (newCreep === sSpawning.ERR_NO_CREEP_TO_SPAWN) {
@@ -60,9 +61,9 @@ module.exports = class Base extends Room {
         this.savingEnergy = false
         const name = this.name + Game.time
         newCreep.memory.home = this.name
-        const result = firstAvailableSpawn.createCreep(newCreep.body, name, newCreep.memory)
-        if (result !== name)
-          console.log('could not spawn creep, reason: ', result, JSON.stringify(newCreep))
+        const result = firstAvailableSpawn.spawnCreep(newCreep.body, name, {
+          memory: newCreep.memory
+        })
       }
     }
   }
@@ -82,13 +83,19 @@ module.exports = class Base extends Room {
     }
   }
 
-  creepTargetsByType(creepType) {
+  getCreepTargetsByRole(creepRole) {
+    return this.creeps.filter(c => c.role === creepRole).map(c =>
+      c.target
+    ).filter(c => c)
+  }
+
+  getCreepTargetsByType(creepType) {
     return this.creeps.filter(c => c instanceof creepType).map(c =>
       c.target
     ).filter(c => c)
   }
 
-  creepJobsByType(creepType) {
+  getCreepJobsByType(creepType) {
     return this.creeps.filter(c => c instanceof creepType).map(c =>
       c.job
     ).filter(c => c)
@@ -131,23 +138,11 @@ module.exports = class Base extends Room {
     this._savingEnergy = saving
   }
 
-  get structures() {
-    if (!this._structures) {
-      this._structures = this.find(FIND_STRUCTURES)
-    }
-    return this._structures
-  }
-
-  get myStructures() {
-    if (!this._myStructures) {
-      this._myStructures = this.structures.filter(s => s.my)
-    }
-    return this._myStructures
-  }
-
   get damagedStructures() {
     if(!this._damagedStructures)
-      this._damagedStructures = this.structures.filter(s => {
+      this._damagedStructures = this.rooms.map(r => r.structures).reduce(
+        (a, b) => a.concat(b), []
+      ).filter(s => {
         if(s.structureType === STRUCTURE_WALL)
           return s.hits < s.hitsMax * 0.0001
         else if(s.structureType === STRUCTURE_RAMPART)
@@ -160,16 +155,24 @@ module.exports = class Base extends Room {
 
   get myConstructionSites() {
     if (!this._myConstructionSites) {
-      const nearSites = this.rooms.map(r => r.find(FIND_MY_CONSTRUCTION_SITES)).reduce((a, b) => a.concat(b), [])
-      this._myConstructionSites = this.find(FIND_MY_CONSTRUCTION_SITES).concat(nearSites)
+      this._myConstructionSites = this.rooms.map(r =>
+        r.find(FIND_MY_CONSTRUCTION_SITES)
+      ).reduce((a, b) => a.concat(b), [])
     }
     return this._myConstructionSites
   }
 
   get income() {
     if(!this._income) {
-      this._income = this.creeps.filter(c => c.memory.role === 'miner')
-        .map(c => c.body).reduce((a,b) => a.concat(b), []).filter(bp => bp.type === WORK).length * HARVEST_POWER
+      let income = this.creeps.filter(c =>
+        c.memory.role === 'miner'
+      ).length * 5 * HARVEST_POWER
+
+      // add additional income for buffered storage
+      if(this.storage)
+        income += this.storage.store[RESOURCE_ENERGY] / 10000
+
+      this._income = income
     }
     return this._income
   }
@@ -260,7 +263,7 @@ module.exports = class Base extends Room {
   // active provider containers,
   get tertiaryStorages() {
     if(!this._tertiaryStorages) {
-      this._tertiaryStorages = this.sources.map(s => s.container).filter(s => s)
+      this._tertiaryStorages = this.baseSources.map(s => s.container).filter(s => s)
     }
     return this._tertiaryStorages
   }
@@ -282,13 +285,5 @@ module.exports = class Base extends Room {
         this._storeTargets = secondary
     }
     return this._storeTargets
-  }
-
-  get collectTargets() {
-
-  }
-
-  get witdrawTargets() {
-    // TODO
   }
 }

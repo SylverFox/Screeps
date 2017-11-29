@@ -6,7 +6,7 @@ module.exports = class Claimer extends BaseCreep {
   }
 
   newJob() {
-    const exclude = this.home.creepTargetsByType(Claimer)
+    const exclude = this.home.getCreepTargetsByType(Claimer)
     const target = this.home.roomsToClaim.filter(r =>
       !exclude.includes(r.controller)
     ).map(r => r.controller)

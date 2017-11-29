@@ -1,129 +1,66 @@
-exports.findCollectTargets = function(base, exclude = [], minEnergy = 50) {
-  const sourceContainers = base.sources.map(s => s.container)
-    .filter(s => s && s.store[RESOURCE_ENERGY] > minEnergy && !exclude.includes(s.id))
-
-  const targets = sourceContainers
-  return targets
+exports.convertPosToWorldCoord = function(pos) {
+  const match = /(W|E)(\d+)(N|S)(\d+)/.exec(pos.roomName)
+  const roomX = match[1] === 'E' ? match[2] * 50 : match[2] * -50 - 50
+  const roomY = match[3] === 'N' ? match[4] * 50 + 50 : match[4] * -50
+  return {x: roomX + pos.x, y: roomY - pos.y}
 }
 
-exports.findClosestCollectTarget = function(creep, exclude) {
-  targets = exports.findCollectTargets(creep.home, exclude, creep.carryCapacity)
-  if (targets.length) {
-    const closest = creep.pos.findClosestByPath(targets)
-    if(closest)
-      return closest
-  }
+exports.worldDistance = function(pos1, pos2) {
+  if(!pos1 || !pos2)
+    return Infinity
 
-  // start collecting even if creep cannot be filled
-  targets = exports.findCollectTargets(creep.home, exclude, 50)
-  if (targets.length) {
-    const closest = creep.pos.findClosestByPath(targets)
-    if(closest)
-      return closest
+  if(pos1.roomName === pos2.roomName) {
+    return Math.max(Math.abs(pos1.x-pos2.x), Math.abs(pos1.y-pos2.y))
   }
+  coord1 = exports.convertPosToWorldCoord(pos1)
+  coord2 = exports.convertPosToWorldCoord(pos2)
+  return Math.max(Math.abs(coord1.x-coord2.x) + Math.abs(coord1.y-coord2.y))
 }
 
-/*
- * finds a deposit to store energy to
- * extensions and spawn first
- * then towers
- * then containers not next to sources
- */
-exports.findClosestStoringDeposit = function(creep) {
-  let deposits, closest
-
-  // primary storage
-  deposits = creep.home.myStructures.filter(s =>
-      [STRUCTURE_SPAWN, STRUCTURE_EXTENSION].includes(s.structureType) &&
-      s.energy < s.energyCapacity
-  )
-
-  if (deposits.length) {
-    closest = creep.pos.findClosestByPath(deposits)
-    if (closest)
-      return closest
-    else
-      return deposits[0]
-  }
-
-  // towers
-  deposits = creep.home.towers.filter(s => s.energy < s.energyCapacity - 50)
-
-  if(deposits.length) {
-    closest = creep.pos.findClosestByPath(deposits)
-    if(closest)
-      return closest
-    else
-      return deposits[0]
-  }
-
-  // container next to controller
-  deposits = creep.home.structures.filter(s =>
-    s.structureType === STRUCTURE_CONTAINER &&
-    _.sum(s.store) < s.storeCapacity &&
-    s.pos.inRangeTo(creep.room.controller, 4)
-  )
-
-  if(deposits.length) {
-    closest = creep.pos.findClosestByPath(deposits)
-    if(closest)
-      return closest
-    else
-      return deposits[0]
-  }
-
-  // other storages
-  deposits = creep.home.structures.filter(s =>
-    [STRUCTURE_CONTAINER, STRUCTURE_STORAGE].includes(s.structureType) &&
-    s.freeSpace > 0 &&
-    !s.pos.findClosestByRange(FIND_SOURCES).pos.isNearTo(s)
-  )
-
-  if (deposits.length) {
-    closest = creep.pos.findClosestByPath(deposits)
-    if (closest)
-      return closest
-    else
-      return deposits[0]
+exports.findClosestByWorldRange = function(pos, targets = [], exclude = []) {
+  if(targets.length) {
+    const sorted = targets.filter(t => !exclude.includes(t)).sort((a, b) =>
+      exports.worldDistance(pos, a.pos) - exports.worldDistance(pos, b.pos)
+    )
+    if(sorted.length)
+      return sorted[0]
   }
 }
 
-/*
- * finds a deposit to retrieve enery from
- * returns a container not next to a source first, otherwise extension or spawn
- */
-exports.findClosestRetrievingDeposit = function(creep, exclude = []) {
-  let closest, deposits
-  deposits = creep.home.structures.filter(s =>
-    [STRUCTURE_CONTAINER, STRUCTURE_STORAGE].includes(s.structureType) &&
-    s.store[RESOURCE_ENERGY] > 0 &&
-    !exclude.includes(s.id)
+exports.findFullestCollectTarget = function(pos, base, exclude = []) {
+  const tertiaryTargets = base.tertiaryStorages.filter(s =>
+    s.filledSpace > 50
+  ).sort((a, b) => b.filledSpace / b.storeCapacity - a.filledSpace / a.storeCapacity)
+  if(tertiaryTargets.length)
+    return tertiaryTargets[0]
+
+  if(base.storage && base.storage.filledSpace > 0) return base.storage
+}
+
+exports.findClosestDepositTarget = function(pos, base, exclude = []) {
+  const primaryTargets = base.primaryStorages.filter(s => s.freeSpace > 0)
+  const primary = exports.findClosestByWorldRange(pos, primaryTargets, exclude)
+  if(primary) return primary
+
+  const secondaryTargets = base.secondaryStorages.filter(s => s.freeSpace > 0)
+  const secondary = exports.findClosestByWorldRange(pos, secondaryTargets, exclude)
+  if(secondary) return secondary
+
+  if(base.storage && base.storage.freeSpace > 0) return base.storage
+}
+
+exports.findClosestRetrievingTarget = function(pos, base, exclude = []) {
+  let nonPrimaryTargets = base.secondaryStorages.filter(s => s.filledSpace > 0).concat(
+    base.tertiaryStorages.filter(s => s.filledSpace > 0)
   )
+  if(base.storage && base.storage.filledSpace > 0)
+    nonPrimaryTargets.push(base.storage)
+  const nonPrimary = exports.findClosestByWorldRange(pos, nonPrimaryTargets, exclude)
+  if(nonPrimary) return nonPrimary
 
-  if (deposits.length) {
-    closest = creep.pos.findClosestByPath(deposits)
-    if (closest)
-      return closest
-    else
-      return deposits[0]
-  }
-
-  if (creep.home.savingEnergy) {
-    // not allowed to gather from primary deposits
-    return
-  }
-
-  deposits = creep.home.myStructures.filter(s =>
-    [STRUCTURE_SPAWN, STRUCTURE_EXTENSION].includes(s.structureType) &&
-    s.energy > 0 &&
-    !exclude.includes(s.id)
-  )
-
-  if (deposits.length) {
-    closest = creep.pos.findClosestByPath(deposits)
-    if (closest)
-      return closest
-    else
-      return deposits[0]
+  if(!base.savingEnergy) {
+    const primaryTargets = base.primaryStorages.filter(s => s.freeSpace > 0)
+    const primary = exports.findClosestByWorldRange(pos, primaryTargets, exclude)
+    if(primary) return primary
   }
 }

@@ -39,27 +39,27 @@ function getRoleCounts(creeps) {
 
 function getRolesNeeded(roleCounts, base) {
   let rolesNeeded = {}
-  const rcl = base.controller.level
 
   Creeps.CREEP_ROLES.forEach(type => rolesNeeded[type] = 0)
 
   for(let source of base.sources) {
-    // if the source has a container and enough energy to spawn miners,
-    // it needs a Miner/Transporter combination. Otherwise it needs harvesters
+    if(!source.container || base.energyCapacityAvailable < 550)
+      rolesNeeded[Creeps.SIMPLE_HARVESTER] += source.freeSpaces
+  }
+
+  for(let source of base.baseSources) {
     if(source.container && base.energyCapacityAvailable >= 550) {
       rolesNeeded[Creeps.MINER]++
       rolesNeeded[Creeps.TRANSPORTER]++
-    } else {
-      rolesNeeded[Creeps.SIMPLE_HARVESTER] += source.freeSpaces
     }
   }
+  rolesNeeded[Creeps.TRANSPORTER]++
+
 
   if(!roleCounts[Creeps.MINER] || !roleCounts[Creeps.TRANSPORTER]) {
     rolesNeeded[Creeps.SIMPLE_HARVESTER] += 2
   }
 
-  if(targetfinder.findCollectTargets(base).length > 2)
-    rolesNeeded[Creeps.TRANSPORTER]++
 
   let currentMechanics = roleCounts[Creeps.MECHANIC] || 1
   if(base.income > base.expense) {
@@ -75,13 +75,10 @@ function getRolesNeeded(roleCounts, base) {
   }
 
   if(base.controller.level >= 4) {
-
-    //rolesNeeded[Creeps.OUTPOST_HARVESTER] = base.farmSources.length + base.outpostSources.length
-
     rolesNeeded[Creeps.CLAIMER] = base.roomsToClaim.length
 
-    if(Memory.nextBase)
-      rolesNeeded[Creeps.CLAIMER]++
+    //if(Memory.nextBase)
+    //  rolesNeeded[Creeps.CLAIMER]++
   }
 
   if(base.hostileCreeps.length)

@@ -5,100 +5,77 @@ module.exports = class Mechanic extends BaseCreep {
   constructor(creep) {
     super(creep)
 
-    this.GATHER = 1
-    this.UPGRADE = 2
-    this.BUILD = 3
-    this.REPAIR = 4
-  }
-
-  performJob() {
-    if(!this.job && !this.newJob()) return
-    if (!this.target && !this.newTarget()) return
-
-    let result
-    if (this.job === this.GATHER) {
-      if(this.target instanceof RoomPosition)
-        this.moveToTarget()
-      result = this.withdraw(this.target, RESOURCE_ENERGY)
-    } else if (this.job === this.UPGRADE)
-      result = this.upgradeController(this.target)
-    else if (this.job === this.BUILD)
-      result = this.build(this.target)
-    else if (this.job === this.REPAIR)
-      result = this.repair(this.target)
-
-    //this.say(result)
-
-    if(result === OK) {
-      this.newJob()
-
-      if(this.empty() || this.full())
-        this.newJob()
-    } else if(result === ERR_NOT_IN_RANGE) {
-      this.moveToTarget(this.target, this.job === this.GATHER ? 1 : 3)
-    } else if(result === ERR_FULL) {
-      this.newJob()
-    } else if(result === ERR_NOT_ENOUGH_RESOURCES) {
-      if(this.job === this.GATHER)
-        this.newTarget()
-      else
-        this.newJob()
-    } else if(result === ERR_INVALID_TARGET) {
-      this.newTarget()
-    } else {
-      this.say(this.job+' '+result)
-    }
-
+    this.enableHurry = true
   }
 
   newJob(job) {
-    this.job = null
-    this.target = null
-
-    if (this.empty())
-      this.job = this.GATHER
-    else
-      this.job = this.findBestJob()
-
-    return !!this.job
-  }
-
-  findBestJob() {
-    const mechs = this.home.creepJobsByType(Mechanic)
+    const mechs = this.home.getCreepJobsByType(Mechanic)
     const total = mechs.length + 1
     const upgraders = mechs.filter(m => m === this.UPGRADE).length
     const builders = mechs.filter(m => m === this.BUILD).length
     const repairers = mechs.filter(m => m === this.REPAIR).length
-    //console.log(upgraders, builders, repairers)
-    if (upgraders === 0)
-      return this.UPGRADE
-    else if (this.home.myConstructionSites.length && builders < total * 0.75)
-      return this.BUILD
-    else if (this.home.damagedStructures.length && repairers < total * 0.25)
-      return this.REPAIR
-    else
-      return this.UPGRADE
+
+    if(this.empty()) {
+      this.job = this.COLLECT_ENERGY
+      this.target = targetfinder.findClosestRetrievingTarget(this.pos, this.home)
+    } else if (upgraders === 0) {
+      this.job = this.UPGRADE
+      const hasUpgraded = this.getExcludedTargets(false).includes(this.home.controller)
+      if(!hasUpgraded)
+        this.target = this.home.controller
+    } else if (this.home.myConstructionSites.length && builders < total * 0.75) {
+      this.job = this.BUILD
+      const targets = this.home.myConstructionSites.filter(s => !this.getExcludedTargets(false).includes(s))
+      this.target = targetfinder.findClosestByWorldRange(this.pos, targets)
+    } else if (this.home.damagedStructures.length && repairers < total * 0.25) {
+      this.job = this.REPAIR
+      const targets = this.home.damagedStructures.filter(s => !this.getExcludedTargets(false).includes(s))
+      this.target = targetfinder.findClosestByWorldRange(this.pos, targets)
+    } else {
+      this.job = this.UPGRADE
+      const hasUpgraded = this.getExcludedTargets(false).includes(this.home.controller)
+      if(!hasUpgraded)
+        this.target = this.home.controller
+    }
+
+    if(this.target)
+      this.addExcludedTarget(this.target)
   }
 
-  newTarget() {
-    if(this.job === this.GATHER) {
-      this.target = targetfinder.findClosestRetrievingDeposit(this)
-    } else if(this.job === this.UPGRADE)
-      this.target = this.home.controller
-    else if(this.job === this.BUILD) {
-      let target = this.pos.findClosestByPath(this.home.myConstructionSites)
-      if(!target && this.home.myConstructionSites.length)
-        target = this.home.myConstructionSites[0]
-      this.target = target
-    } else if(this.job === this.REPAIR)
-      this.target = this.pos.findClosestByPath(this.home.damagedStructures)
+  handleJobOK() {
+    let done = false
+    const workParts = this.body.filter(b => b === WORK).length
 
-    if(!this.target) {
-      this.job = null
-      this.say('zzz')
-      return false
-    } else {
-      return true
+    if (this.job === this.COLLECT_ENERGY) {
+      this.carryOffset += Math.min(this.freeSpace(), this.target.filledSpace)
+      if(!this.full()) {
+        this.target = targetfinder.findClosestRetrievingTarget(this.pos, this.home, this.getExcludedTargets(false))
+        done = !!this.target
+      }
+    } else if(this.job === this.BUILD) {
+      this.carryOffset -= workParts * BUILD_POWER
+      done = this.empty()
+    } else if(this.job === this.UPGRADE) {
+       this.carryOffset -= workParts * UPGRADE_CONTROLLER_POWER
+       done = this.empty()
+    } else if(this.job === this.REPAIR) {
+      this.carryOffset -= workParts * BUILD_POWER
+      done = this.empty()
+    }
+
+    return done
+  }
+
+  reviewTarget() {
+    if(this.job === this.BUILD) {
+      if(!this.target)
+        this.target = null
+    } else if(this.job === this.REPAIR) {
+      if(!(this.target && this.target.hits !== this.target.hitsMax))
+        this.target = null
+    } else if(this.job === this.COLLECT_ENERGY) {
+      if(this.target.filledSpace === 0)
+        this.target = null
     }
   }
 }

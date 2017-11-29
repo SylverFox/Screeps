@@ -78,6 +78,26 @@ Object.defineProperty(Room.prototype, 'outpost', {
   configurable: true
 })
 
+Object.defineProperty(Room.prototype, 'structures', {
+  get: function() {
+    if(!this._structures)
+      this._structures = this.find(FIND_STRUCTURES)
+    return this._structures
+  },
+  enumerable: false,
+  configurable: true
+})
+
+Object.defineProperty(Room.prototype, 'myStructures', {
+  get: function() {
+    if(!this._myStructures)
+      this._myStructures = this.structures.filter(s => s.my)
+    return this._myStructures
+  },
+  enumerable: false,
+  configurable: true
+})
+
 Object.defineProperty(Room.prototype, 'top', {
   get: function() {
     if(!this._top && this._top !== null)

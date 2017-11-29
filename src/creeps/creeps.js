@@ -93,7 +93,7 @@ function miner(maxEnergy) {
 function transporter(maxEnergy) {
   const set = [MOVE, CARRY, CARRY]
   const setCost = set.map(p => BODYPART_COST[p]).reduce((a, b) => a + b)
-  const maxSets = Math.min(Math.floor(maxEnergy / setCost))
+  const maxSets = Math.min(Math.floor(maxEnergy / setCost), 10)
 
   const body = Array(maxSets).fill(set).reduce((a, b) => a.concat(b), []).sort()
   return body

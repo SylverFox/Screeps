@@ -3,26 +3,7 @@ module.exports = class BaseCreep extends Creep {
     super(creep.id)
     Object.assign(this, creep)
 
-    // CONSTANTS
-    this.TARGET_IN_RANGE = 0b10
-    this.MOVED = 0b01
-    this.MOVED_TARGET_IN_RANGE = 0b11
-    this.MOVED_TARGET_NOT_IN_RANGE = 0b01
-    this.UNABLE_TO_MOVE = 0b100
-
-    this.moveOpts = {
-      visualizePathStyle: {
-        fill: 'transparent',
-        stroke: '#fff',
-        lineStyle: 'dashed',
-        strokeWidth: .15,
-        opacity: .5
-      }
-    }
-
     this.HARVEST = 'harvest'
-    // TODO deprecate
-    this.STORE = 'store'
     this.BUILD = 'build'
     this.REPAIR = 'repair'
     this.UPGRADE = 'upgrade'
@@ -31,16 +12,22 @@ module.exports = class BaseCreep extends Creep {
     this.PICKUP = 'pickup'
     this.RESERVE = 'reserve'
     this.CLAIM = 'claim'
+    this.SCOUT = 'scout'
 
     this.enableHurry = false
     this.maxJobTries = 10
 
-    this.maxStuck = 3
+    this.maxStuck = 2
+
+    this.dying = false
   }
 
-
-
   performJob() {
+    // handle end of life for a creep
+    this._handleEOL()
+    // check if target is still valid
+    this.reviewTarget()
+
     if((!this.job || !this.target) && !this._newJob())
       return
 
@@ -63,6 +50,8 @@ module.exports = class BaseCreep extends Creep {
       result = this.reserveController(this.target)
     else if(this.job === this.CLAIM)
       result = this.claimController(this.target)
+    else if(this.job === this.SCOUT)
+      result = OK
 
     this.jobTries = 1 + (this.jobTries || 0)
     if(this.jobTries > this.maxJobTries) {
@@ -74,20 +63,16 @@ module.exports = class BaseCreep extends Creep {
       const jobDone = this.handleJobOK()
       if(jobDone) {
         this._newJob()
-        if(this.enableHurry)
+        if(this.enableHurry && this.job && this.target)
           this.performJob()
       }
     } else if(result === ERR_NOT_IN_RANGE) {
-      this.moveToTarget_new()
-    } else if(result === ERR_FULL) {
+      this.moveToTarget()
+    } else if([ERR_FULL, ERR_NOT_ENOUGH_ENERGY, ERR_INVALID_TARGET].includes(result)) {
       this._newJob()
-      this.say('full')
-    } else if(result === ERR_NOT_ENOUGH_RESOURCES) {
-      this._newJob()
-      this.say('empty')
-    } else if(result === ERR_INVALID_TARGET) {
-      this._newJob()
-      this.say('inv target')
+      this.say(result)
+      if(this.enableHurry && this.job && this.target)
+        this.performJob()
     } else {
       this.say(this.job.slice(0, 6)+' '+result)
     }
@@ -101,6 +86,18 @@ module.exports = class BaseCreep extends Creep {
   // placeholder for handle job ok
   handleJobOK() {
     console.log('job OK not implemented for',this.role,this.name)
+  }
+
+  // placeholder for end of life sequence
+  handleEOL() {}
+
+  // placeholder for verifying target
+  reviewTarget() {}
+
+  _handleEOL() {
+    if(!this.dying) {
+      this.dying = !!this.handleEOL()
+    }
   }
 
   _newJob() {
@@ -128,8 +125,7 @@ module.exports = class BaseCreep extends Creep {
       return 1
   }
 
-  // TODO split inter-room movement
-  moveToTarget_new(range) {
+  moveToTarget(range) {
     let _range = range || this._getRangeByJob()
 
     let ignoreCreeps = true
@@ -156,6 +152,7 @@ module.exports = class BaseCreep extends Creep {
         const route = Game.map.findRoute(this.room, this.target.room)
         if(route.length) {
           const exit = this.pos.findClosestByPath(route[0].exit)
+          //console.log(exit)
           path = this.pos.findPathTo(exit, {
             ignoreCreeps: ignoreCreeps
           })
@@ -187,40 +184,6 @@ module.exports = class BaseCreep extends Creep {
 
   }
 
-  // returns true if in range of the target
-  // @deprecated
-  moveToTarget(target = this.target, range = 1) {
-    let result = 0
-    const dist = this.pos.getRangeTo(target)
-
-    if(dist <= range) {
-      return this.TARGET_IN_RANGE
-    }
-
-    if(!this.path)
-      this.path = this.pos.findPathTo(target)
-
-    // TODO use cached path
-    //const moveResult = this.moveByPath(this.path)
-    const moveResult = this.moveTo(target, this.moveOpts)
-
-    //if(moveResult !== OK) console.log('move error',moveResult)
-
-    if(moveResult === OK) {
-      this.hasMoved = true
-      result |= this.MOVED
-      if(dist === range + 1)
-        result |= this.TARGET_IN_RANGE
-    } else if(moveResult === ERR_NOT_FOUND) {
-      this.say('lost')
-      this.path = this.pos.findPathTo(target)
-    } else {
-      return this.UNABLE_TO_MOVE
-    }
-
-    return result
-  }
-
   full() {
     return this.freeSpace() <= 0
   }
@@ -238,6 +201,20 @@ module.exports = class BaseCreep extends Creep {
 
   freeSpace() {
     return this.carryCapacity - this.filledSpace()
+  }
+
+  getExcludedTargets(includeShared = true) {
+    if(!this._excludedTargets || !this._sharedExcludedTargets) {
+      this._excludedTargets = []
+      this._sharedExcludedTargets = this.home.getCreepTargetsByRole(this.role)
+    }
+    return includeShared ? this._excludedTargets.concat(this._sharedExcludedTargets) : this._excludedTargets
+  }
+
+  addExcludedTarget(target) {
+    if(!this._excludedTargets)
+      this._excludedTargets = []
+    this._excludedTargets.push(target)
   }
 
   get role() {
@@ -313,5 +290,16 @@ module.exports = class BaseCreep extends Creep {
   set stuckCount(c) {
     this.memory.stuckCount = c
     this._stuckCount = c
+  }
+
+  get carryOffset() {
+    if(!this._carryOffset) {
+      this._carryOffset = 0
+    }
+    return this._carryOffset
+  }
+
+  set carryOffset(offset) {
+    this._carryOffset = offset
   }
 }

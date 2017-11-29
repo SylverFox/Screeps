@@ -56,7 +56,7 @@ module.exports = class OutpostHarvester extends BaseCreep {
     this.target = null
 
     if(this.job === this.HARVEST) {
-      const exclude = this.home.creepTargetsByType(OutpostHarvester)
+      const exclude = this.home.getCreepTargetsByType(OutpostHarvester)
       this.target = this.home.sources.find(s => s.room === this.room)
       if(!this.target)
         this.target = this.home.sources.find(s => !exclude.includes(s))

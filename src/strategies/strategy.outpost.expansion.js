@@ -1,4 +1,4 @@
-const MAX_PROJECTS = 10
+const Map = require('./utils.map')
 
 exports.run = function(outpost) {
   if(!outpost.memory.constructionPlan) {
@@ -6,27 +6,9 @@ exports.run = function(outpost) {
     outpost.memory.constructionPlan = buildConstructionPlan(outpost)
   }
 
-  const maxP = MAX_PROJECTS - outpost.constructionSites.length
-  if(maxP <= 0) {
-    return
-  }
-  // retrieve next construction jobs
-  let jobs = []
-  for (let plan of outpost.memory.constructionPlan) {
-    const blocked = new RoomPosition(...plan.pos).look().filter(s =>
-      [LOOK_CONSTRUCTION_SITES, LOOK_STRUCTURES].includes(s.type)
-    ).length
-
-    if (!blocked) {
-      jobs.push(plan)
-      if(jobs.length >= maxP) {
-        return jobs
-      }
-    }
-  }
+  const jobs = retrieveConstructions(outpost)
 
   if(jobs.length) {
-    // return last few jobs
     return jobs
   } else {
     // delete plan and rebuild in the next iteration
@@ -34,29 +16,93 @@ exports.run = function(outpost) {
   }
 }
 
+function retrieveConstructions(outpost) {
+  const map = new Map()
+  map.import(outpost.memory.constructionPlan)
+  const constructions = map.structures()
+
+  // get all constructions that have not been build
+  let jobs = []
+  for(let c of constructions) {
+    const pos = new RoomPosition(c.x, c.y, outpost.name)
+    const type = c.type
+
+    const blocked = pos.look().filter(s =>
+      (s.type === LOOK_STRUCTURES && s.structure.structureType === type) ||
+      (s.type === LOOK_CONSTRUCTION_SITES)
+    ).length > 0
+
+    if(!blocked) {
+      jobs.push({pos, type})
+    }
+  }
+  
+  return jobs
+}
+
 function buildConstructionPlan(outpost) {
-  // construction plan builds roads from objects in the room to bases
-  let constructionPlan = []
+  const map = new Map()
 
-  const minerals = outpost.find(FIND_MINERALS)
-  const sources = outpost.sources
-  const controller = outpost.controller
+  // apply terrain
+  for(let x = 0; x < 50; x++) {
+    for(let y = 0; y < 50; y++) {
+      const terrain = Game.map.getTerrainAt(x, y, outpost.name)
+      map.set(x, y, terrain === 'wall' ? map.WALL : map.GROUND)
+    }
+  }
 
-  const targets = [controller, ...sources, ...minerals]
   const spawns = outpost.bases.map(b => b.spawns[0]).filter(s => s)
 
-  for (let t of targets) {
-    for (let s of spawns) {
-      const path = t.pos.findPathTo(s, {ignoreCreeps: true})
-      // add all paths except last (on border)
-      for (let i = 0; i < path.length - 1; i++) {
-        constructionPlan.push({
-          pos: [path[i].x, path[i].y, outpost.name],
-          type: STRUCTURE_ROAD
-        })
+  for(let s of spawns) {
+    const path = outpost.findPath(outpost.controller.pos, s.pos, {
+      ignoreCreeps: true,
+      costCallback: (name, cm) => {
+        return map.costMatrix()
+      }
+    })
+
+    for(let p = 1; p < path.length - 1; p++) {
+      map.set(path[p], STRUCTURE_ROAD)
+    }
+  }
+
+  for(let s of spawns) {
+    for(let source of outpost.sources) {
+      const path = outpost.findPath(source.pos, s.pos, {
+        ignoreCreeps: true,
+        costCallback: (name, cm) => {
+          return map.costMatrix()
+        }
+      })
+
+      map.set(path[0], STRUCTURE_CONTAINER)
+      map.adjacentFreeSpaces(path[0]).forEach(
+        s => map.set(s, STRUCTURE_ROAD)
+      )
+
+      for(let p = 1; p < path.length - 1; p++) {
+        map.set(path[p], STRUCTURE_ROAD)
       }
     }
   }
 
-  return constructionPlan
+  for(let s of spawns) {
+    const path = outpost.findPath(outpost.mineral.pos, s.pos, {
+      ignoreCreeps: true,
+      costCallback: (name, cm) => {
+        return map.costMatrix()
+      }
+    })
+
+    map.set(path[0], STRUCTURE_CONTAINER)
+    map.adjacentFreeSpaces(path[0]).forEach(
+      s => map.set(s, STRUCTURE_ROAD)
+    )
+
+    for(let p = 1; p < path.length - 1; p++) {
+      map.set(path[p], STRUCTURE_ROAD)
+    }
+  }
+
+  return map.export()
 }

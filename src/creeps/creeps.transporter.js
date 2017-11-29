@@ -9,49 +9,31 @@ module.exports = class Transporter extends BaseCreep {
   }
 
   newJob() {
-    const collectTargets = targetfinder.findCollectTargets(this.home, this.excludedTargets)
-    const storeTargets = this.home.storeTargets.filter(s => !this.excludedTargets.includes(s.id))
-    const drops = this.home.drops.filter(d => !this.excludedTargets.includes(d.id))
+    const collectTarget = targetfinder.findFullestCollectTarget(this.pos, this.home, this.getExcludedTargets())
+    const collectDist = collectTarget ? targetfinder.worldDistance(this.pos, collectTarget.pos) : Infinity
+    const storeTarget = targetfinder.findClosestDepositTarget(this.pos, this.home, this.getExcludedTargets(false))
+    const storeDist = storeTarget ? targetfinder.worldDistance(this.pos, storeTarget.pos) : Infinity
+    const dropTarget = targetfinder.findClosestByWorldRange(this.pos, this.home.drops, this.getExcludedTargets())
+    const dropDist = dropTarget ? targetfinder.worldDistance(this.pos, dropTarget.pos) : Infinity
 
-    if (this.empty()) {
-      if(drops.length) {
+    if (this.empty() || (storeDist > collectDist && storeDist > dropDist)) {
+      if(dropTarget) {
         this.job = this.PICKUP
-        this.target = this.pos.findClosestByPath(drops)
-      }
-      else if(collectTargets.length) {
+        this.target = dropTarget
+      } else if(collectTarget) {
         this.job = this.COLLECT_ENERGY
-        this.target = this.pos.findClosestByPath(collectTargets)
-      } else if(this.home.storage) {
-        this.job = this.COLLECT_ENERGY
-        this.target = this.home.storage
-      }
-    } else if(this.full()) {
-      if(storeTargets.length) {
-        this.job = this.STORE_ENERGY
-        this.target = this.pos.findClosestByPath(storeTargets)
+        this.target = collectTarget
       }
     } else {
-      const drpT = this.pos.findClosestByPath(drops)
-      const rangeDrp = drpT ? this.pos.getRangeTo(drpT.pos) : Infinity
-      const colT = this.pos.findClosestByPath(collectTargets)
-      const rangeCol = colT ? this.pos.getRangeTo(colT.pos) : Infinity
-      const strT = this.pos.findClosestByPath(storeTargets)
-      const rangeStr = strT ? this.pos.getRangeTo(strT.pos) : Infinity
-      if(rangeDrp < rangeStr) {
-        this.job = this.PICKUP
-        this.target = drpT
-      } else if(rangeCol < rangeStr) {
-        this.job = this.COLLECT_ENERGY
-        this.target = colT
-      } else {
+      if(storeTarget) {
         this.job = this.STORE_ENERGY
-        this.target = strT
+        this.target = storeTarget
       }
     }
 
     // make sure this target is not chosen again in this tick
     if(this.target)
-      this.excludedTargets.push(this.target.id)
+      this.addExcludedTarget(this.target)
   }
 
   handleJobOK() {
@@ -68,10 +50,16 @@ module.exports = class Transporter extends BaseCreep {
     return true
   }
 
-  get excludedTargets() {
-    if(!this._excludedTargets) {
-      this._excludedTargets = this.home.creepTargetsByType(Transporter)
+  reviewTarget() {
+    if(this.job === this.PICKUP) {
+      if(!this.target)
+        this.target = null
+    } else if(this.job === this.COLLECT_ENERGY) {
+      if(this.target.filledSpace === 0)
+        this.target = null
+    } else if(this.job === this.STORE_ENERGY) {
+      if(this.target.freeSpace === 0)
+        this.target = null
     }
-    return this._excludedTargets
   }
 }
