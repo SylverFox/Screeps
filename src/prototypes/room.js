@@ -1,31 +1,12 @@
 Object.defineProperty(Room.prototype, 'roomType', {
   get: function() {
     if(!this._roomType) {
-      if(!this.memory.roomType) {
-        if(!Game.rooms[this.name])
-          this._roomType = ROOM_TYPE_FOGGED
-        else if(!this.controller)
-          this.memory.roomType = ROOM_TYPE_EMPTY
-        else if(this.controller.my)
-          this.memory.roomType = ROOM_TYPE_MY_BASE
-        else if(this.controller.owner)
-          this.memory.roomType = ROOM_TYPE_HOSTILE_BASE
-        else if(this.controller.reservation && this.controller.reservation.username === USERNAME)
-          this._roomType = ROOM_TYPE_MY_OUTPOST
-        else if(this.controller.reservation && this.controller.reservation.username !== USERNAME)
-          this._roomType = ROOM_TYPE_HOSTILE_OUTPOST
-        else if(this.sources.length)
-          this._roomType = ROOM_TYPE_FARM
-        else
-          console.log('uknown room type')
-      }
-      if(this.memory.roomType)
-        this._roomType = this.memory.roomType
+      if(!this.memory.roomType)
+        this.memory.roomType = ROOM_TYPE_UKNOWN
+      this._roomType = this.memory.roomType
     }
     return this._roomType
-  },
-  enuerable: false,
-  configurable: true
+  }, enumerable: false, configurable: true
 })
 
 Object.defineProperty(Room.prototype, 'sources', {
@@ -37,9 +18,7 @@ Object.defineProperty(Room.prototype, 'sources', {
       this._sources = this.memory.sourceIds.map(id => Game.getObjectById(id))
     }
     return this._sources;
-  },
-  enumerable: false,
-  configurable: true
+  }, enumerable: false, configurable: true
 })
 
 Object.defineProperty(Room.prototype, 'mineral', {
@@ -53,29 +32,23 @@ Object.defineProperty(Room.prototype, 'mineral', {
       this._mineral = Game.getObjectById(this.memory.mineralId)
     }
     return this._mineral
-  },
-  enumerable: false,
-  configurable: true
+  }, enumerable: false, configurable: true
 })
 
 Object.defineProperty(Room.prototype, 'base', {
   get: function() {
     if (!this._base && this.roomType === ROOM_TYPE_MY_BASE)
-      this._base = new (require('./base'))(this)
+      this._base = new (require('../base'))(this)
     return this._base
-  },
-  enumerable: false,
-  configurable: true
+  }, enumerable: false, configurable: true
 })
 
 Object.defineProperty(Room.prototype, 'outpost', {
   get: function() {
     if(!this._outpost && this.roomType === ROOM_TYPE_MY_OUTPOST)
-      this._outpost = new (require('./outpost'))(this)
+      this._outpost = new (require('../outpost'))(this)
     return this._outpost
-  },
-  enumerable: false,
-  configurable: true
+  }, enumerable: false, configurable: true
 })
 
 Object.defineProperty(Room.prototype, 'structures', {
@@ -83,9 +56,7 @@ Object.defineProperty(Room.prototype, 'structures', {
     if(!this._structures)
       this._structures = this.find(FIND_STRUCTURES)
     return this._structures
-  },
-  enumerable: false,
-  configurable: true
+  }, enumerable: false, configurable: true
 })
 
 Object.defineProperty(Room.prototype, 'myStructures', {
@@ -93,9 +64,71 @@ Object.defineProperty(Room.prototype, 'myStructures', {
     if(!this._myStructures)
       this._myStructures = this.structures.filter(s => s.my)
     return this._myStructures
-  },
-  enumerable: false,
-  configurable: true
+  }, enumerable: false, configurable: true
+})
+
+Object.defineProperty(Room.prototype, 'repairableStructures', {
+  get: function() {
+    if(!this._repairableStructures)
+      this._repairableStructures = this.structures.filter(
+        s => s.hits < s.hitsMax
+      ).sort((a,b) => a.hits/a.hitsMax - b.hits/b.hitsMax)
+    return this._repairableStructures
+  }, enumerable: false, configurable: true
+})
+
+Object.defineProperty(Room.prototype, 'myConstructionSites', {
+  get: function() {
+    if(!this._myConstructionSites)
+      this._myConstructionSites = this.find(FIND_MY_CONSTRUCTION_SITES)
+    return this._myConstructionSites
+  }, enumerable: false, configurable: true
+})
+
+Object.defineProperty(Room.prototype, 'primaryStorages', {
+  get: function() {
+    if(!this._primaryStorages) {
+      let storages = this.myStructures.filter(
+        s => [STRUCTURE_SPAWN, STRUCTURE_EXTENSION].includes(s.structureType)
+      )
+
+      this.towers.filter(
+        t => (t.energyCapacity - t.energy) > 50
+      ).forEach(t => storages.push(t))
+
+      this._primaryStorages = storages
+    }
+    return this._primaryStorages
+  }, enumerable: false, configurable: true
+})
+
+Object.defineProperty(Room.prototype, 'secondaryStorages', {
+  get: function() {
+    if(!this._secondaryStorages) {
+      this._secondaryStorages = this.structures.filter(s =>
+        s.structureType === STRUCTURE_CONTAINER &&
+        !this.tertiaryStorages.includes(s)
+      )
+    }
+    return this._secondaryStorages
+  }, enumerable: false, configurable: true
+})
+
+Object.defineProperty(Room.prototype, 'tertiaryStorages', {
+  get: function() {
+    if(!this._tertiaryStorages) {
+      this._tertiaryStorages = this.sources.map(s => s.container).filter(s => s)
+    }
+    return this._tertiaryStorages
+  }, enumerable: false, configurable: true
+})
+
+Object.defineProperty(Room.prototype, 'drops', {
+  get: function() {
+    if(!this._drops)
+      this._drops = this.find(FIND_DROPPED_RESOURCES)
+    return this._drops
+  }, enumerable: false, configurable: true
 })
 
 Object.defineProperty(Room.prototype, 'top', {
@@ -103,9 +136,7 @@ Object.defineProperty(Room.prototype, 'top', {
     if(!this._top && this._top !== null)
       this._top = Game.map.describeExits(this.name)[TOP] || null
     return this._top
-  },
-  enumerable: false,
-  configurable: true
+  }, enumerable: false, configurable: true
 })
 
 Object.defineProperty(Room.prototype, 'right', {
@@ -113,19 +144,15 @@ Object.defineProperty(Room.prototype, 'right', {
     if(!this._right && this._right !== null)
       this._right = Game.map.describeExits(this.name)[RIGHT] || null
     return this._right
-  },
-  enumerable: false,
-  configurable: true
+  }, enumerable: false, configurable: true
 })
 
 Object.defineProperty(Room.prototype, 'bottom', {
   get: function() {
-    if(!this._bottom && this._right !== null)
+    if(!this._bottom && this._bottom !== null)
       this._bottom = Game.map.describeExits(this.name)[BOTTOM] || null
     return this._bottom
-  },
-  enumerable: false,
-  configurable: true
+  }, enumerable: false, configurable: true
 })
 
 Object.defineProperty(Room.prototype, 'left', {
@@ -133,9 +160,7 @@ Object.defineProperty(Room.prototype, 'left', {
     if(!this._left && this._left !== null)
       this._left = Game.map.describeExits(this.name)[LEFT] || null
     return this._left
-  },
-  enumerable: false,
-  configurable: true
+  }, enumerable: false, configurable: true
 })
 
 Object.defineProperty(Room.prototype, 'topleft', {
@@ -147,9 +172,7 @@ Object.defineProperty(Room.prototype, 'topleft', {
         this._topleft = Game.map.describeExits(this.left)[TOP] || null
     }
     return this._topleft
-  },
-  enumerable: false,
-  configurable: true
+  }, enumerable: false, configurable: true
 })
 
 Object.defineProperty(Room.prototype, 'topright', {
@@ -161,9 +184,7 @@ Object.defineProperty(Room.prototype, 'topright', {
         this._topright = Game.map.describeExits(this.right)[TOP] || null
     }
     return this._topright
-  },
-  enumerable: false,
-  configurable: true
+  }, enumerable: false, configurable: true
 })
 
 Object.defineProperty(Room.prototype, 'bottomleft', {
@@ -176,9 +197,7 @@ Object.defineProperty(Room.prototype, 'bottomleft', {
         this._bottomleft = Game.map.describeExits(this.left)[BOTTOM] || null
     }
     return this._bottomleft
-  },
-  enumerable: false,
-  configurable: true
+  }, enumerable: false, configurable: true
 })
 
 Object.defineProperty(Room.prototype, 'bottomright', {
@@ -191,7 +210,5 @@ Object.defineProperty(Room.prototype, 'bottomright', {
         this._bottomright = Game.map.describeExits(this.right)[BOTTOM] || null
     }
     return this._bottomright
-  },
-  enumerable: false,
-  configurable: true
+  }, enumerable: false, configurable: true
 })

@@ -1,4 +1,4 @@
-const Map = require('./utils.map')
+const Map = require('./map')
 
 module.exports = class ConstructionPlanner {
   constructor(base) {
@@ -28,10 +28,35 @@ module.exports = class ConstructionPlanner {
   }
 
   // retrieve a number of construction jobs
-  retrieve(max = 10) {
+  retrieve(max = MAX_ROOM_CONSTRUCTION_SITES) {
+    const _max = max - this.base.myConstructionSites
+    if(_max <= 0) {
+      return
+    }
+
     const constructionMap = new Map()
     constructionMap.import(this.base.memory.constructionPlan)
-    const constructions = constructionMap.structures()
+    let constructions = constructionMap.structures()
+
+    // filter constructions based on rcl
+    constructions = constructions.filter(c => {
+      if(c.type === STRUCTURE_WALL || c.type == STRUCTURE_RAMPART) {
+        return this.base.controller.level > 2
+      }
+      return true
+    })
+
+    // sort by appropriate structures to build
+    constructions.sort((c1, c2) => {
+      if(c1.type === c2.type) {
+        return 0
+      } else if(c1.type === STRUCTURE_WALL || c1.type === STRUCTURE_RAMPART) {
+        // push these back
+        return 1
+      } else if(c1.type === STRUCTURE_EXTENSION) {
+        return -1
+      }
+    })
 
     // get all constructions that have not been build
     let jobs = []
@@ -46,7 +71,7 @@ module.exports = class ConstructionPlanner {
 
       if(!blocked) {
         jobs.push({pos, type})
-        if(jobs >= max)
+        if(jobs >= _max)
           break
       }
     }
@@ -193,10 +218,8 @@ module.exports = class ConstructionPlanner {
     const targets = [
       s,
       this.base.controller.pos,
-      ...this.base.sources.map(s => s.pos),
-      ...exitPos,
       this.base.mineral.pos,
-    ]
+    ].concat(...this.base.sources.map(s => s.pos)).concat(...exitPos)
 
     for(let i = 0; i < targets.length - 1; i++) {
       for(let j = i + 1; j < targets.length; j++) {

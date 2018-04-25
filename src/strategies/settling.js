@@ -1,4 +1,5 @@
 exports.run = function() {
+  /*
   // list all my bases
   const bases = Object.keys(Game.rooms).map(r => Game.rooms[r]).filter(r => r.base)
 
@@ -32,12 +33,18 @@ exports.run = function() {
   chosenRooms = chosenRooms.sort(sortBySourcesDist)
 
   const chosenRoom = chosenRooms[0]
+  */
 
-  // fluid fill to find best spawn point
-  const spawnPos = findSpawnPoint(chosenRoom)
+  let chosenRoom = Game.empire.worldmap.findClosestFarm('W8N3', 10)
+
+  let spawnPos
+  if(Game.rooms[chosenRoom]) {
+    // fluid fill to find best spawn point
+    spawnPos = findSpawnPoint(Game.rooms[chosenRoom])
+  }
 
   // return roomname and spawn location
-  return {roomName: chosenRoom.name, spawnPos: spawnPos}
+  return {roomName: chosenRoom, spawnPos: spawnPos}
 }
 
 function sortBySourcesDist(roomA, roomB) {

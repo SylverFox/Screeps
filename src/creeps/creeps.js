@@ -1,46 +1,57 @@
-const SimpleHarvester = require('./creeps.simpleharvester')
-const Miner = require('./creeps.miner')
-const Transporter = require('./creeps.transporter')
-const Mechanic = require('./creeps.mechanic')
-const Scout = require('./creeps.scout')
-const OutpostHarvester = require('./creeps.outpostharvester')
-const Claimer = require('./creeps.claimer')
-const Ranger = require('./creeps.ranger')
+const HomeHarvester = require('./home/homeharvester')
+const HomeMechanic = require('./home/homemechanic')
+const HomeMiner = require('./home/homeminer')
+const HomeTransporter = require('./home/hometransporter')
+const HomeUpgrader = require('./home/homeupgrader')
+
+const Distributor = require('./home/distributor')
+
+const BaseScout = require('./base/basescout')
+const BaseClaimer = require('./base/baseclaimer')
+const BaseMiner = require('./base/baseminer')
+const BaseTransporter = require('./base/basetransporter')
+const BaseHarvester = require('./base/baseharvester')
+const BaseBuilder = require('./base/basebuilder')
+
+const Settler = require('./world/settler')
+
+const Ranger = require('./military/ranger')
 
 exports.ERR_NOT_ENOUGH_ENERGY = -1
 exports.ERR_INVALID_ROLE = -2
 
 exports.CREEP_ROLES = [
-  exports.SIMPLE_HARVESTER = 'simpleHarvester',
-  exports.MECHANIC = 'mechanic',
-  exports.MINER = 'miner',
-  exports.TRANSPORTER = 'transporter',
-  exports.SCOUT = 'scout',
-  exports.OUTPOST_HARVESTER = 'outpostHarvester',
-  exports.CLAIMER = 'claimer',
-  exports.RANGER = 'ranger'
+  exports.HOME_HARVESTER = 'homeHarvester',
+  exports.HOME_MECHANIC = 'homeMechanic',
+  exports.HOME_MINER = 'homeMiner',
+  exports.HOME_TRANSPORTER = 'homeTransporter',
+  exports.HOME_UPGRADER = 'homeUpgrader',
+  exports.BASE_SCOUT = 'baseScout',
+  exports.BASE_CLAIMER = 'baseClaimer',
+  exports.BASE_MINER = 'baseMiner',
+  exports.BASE_TRANSPORTER = 'baseTransporter',
+  exports.BASE_HARVESTER = 'baseHarvester',
+  exports.BASE_BUILDER = 'baseBuilder',
+  exports.SETTLER = 'settler',
+  exports.RANGER = 'ranger',
+  exports.DISTRIBUTOR = 'distributor'
 ]
 
 const roleToCreepMap = {
-  [exports.SIMPLE_HARVESTER]: SimpleHarvester,
-  [exports.MECHANIC]: Mechanic,
-  [exports.MINER]: Miner,
-  [exports.TRANSPORTER]: Transporter,
-  [exports.SCOUT]: Scout,
-  [exports.OUTPOST_HARVESTER]: OutpostHarvester,
-  [exports.CLAIMER]: Claimer,
-  [exports.RANGER]: Ranger
-}
-
-const roleToBodyMap = {
-  [exports.SIMPLE_HARVESTER]: simpleHarvester,
-  [exports.MECHANIC]: mechanic,
-  [exports.MINER]: miner,
-  [exports.TRANSPORTER]: transporter,
-  [exports.SCOUT]: scout,
-  [exports.OUTPOST_HARVESTER]: outpostHarvester,
-  [exports.CLAIMER]: claimer,
-  [exports.RANGER]: ranger
+  [exports.HOME_HARVESTER]: HomeHarvester,
+  [exports.HOME_MECHANIC]: HomeMechanic,
+  [exports.HOME_MINER]: HomeMiner,
+  [exports.HOME_TRANSPORTER]: HomeTransporter,
+  [exports.HOME_UPGRADER]: HomeUpgrader,
+  [exports.BASE_SCOUT]: BaseScout,
+  [exports.BASE_CLAIMER]: BaseClaimer,
+  [exports.BASE_MINER]: BaseMiner,
+  [exports.BASE_TRANSPORTER]: BaseTransporter,
+  [exports.BASE_HARVESTER]: BaseHarvester,
+  [exports.BASE_BUILDER]: BaseBuilder,
+  [exports.SETTLER]: Settler,
+  [exports.RANGER]: Ranger,
+  [exports.DISTRIBUTOR]: Distributor
 }
 
 exports.from = function(creep) {
@@ -53,7 +64,7 @@ exports.from = function(creep) {
 exports.buildCreep = function(role, energy, maxEnergy) {
   if (!role || !exports.CREEP_ROLES.includes(role)) return exports.ERR_INVALID_ROLE
 
-  const body = roleToBodyMap[role](maxEnergy)
+  const body = roleToCreepMap[role].build(maxEnergy)
   const cost = body.map(p => BODYPART_COST[p]).reduce((a, b) => a + b)
 
   if (cost > energy) {
@@ -66,56 +77,4 @@ exports.buildCreep = function(role, energy, maxEnergy) {
       }
     }
   }
-}
-
-function simpleHarvester(maxEnergy) {
-  return [MOVE, MOVE, WORK, CARRY, CARRY]
-}
-
-function mechanic(maxEnergy) {
-  const set = [WORK, CARRY, MOVE, MOVE]
-  const setCost = set.map(p => BODYPART_COST[p]).reduce((a, b) => a + b)
-  const maxSets = Math.min(Math.floor(maxEnergy / setCost), 4)
-
-  const body = Array(maxSets).fill(set).reduce((a, b) => a.concat(b), []).sort()
-  return body
-}
-
-function miner(maxEnergy) {
-  let leftover = maxEnergy - BODYPART_COST[MOVE]
-  let workParts = Math.floor(leftover / BODYPART_COST[WORK])
-  workParts = Math.min(workParts, 5)
-  const parts = Array(workParts).fill(WORK)
-
-  return [MOVE].concat(parts)
-}
-
-function transporter(maxEnergy) {
-  const set = [MOVE, CARRY, CARRY]
-  const setCost = set.map(p => BODYPART_COST[p]).reduce((a, b) => a + b)
-  const maxSets = Math.min(Math.floor(maxEnergy / setCost), 10)
-
-  const body = Array(maxSets).fill(set).reduce((a, b) => a.concat(b), []).sort()
-  return body
-}
-
-function scout(maxEnergy) {
-  return [MOVE]
-}
-
-function outpostHarvester(maxEnergy) {
-  const set = [WORK, CARRY, CARRY, MOVE, MOVE, MOVE]
-  const setCost = set.map(p => BODYPART_COST[p]).reduce((a, b) => a + b)
-  const maxSets = Math.min(Math.floor(maxEnergy / setCost), 3)
-
-  const body = Array(maxSets).fill(set).reduce((a, b) => a.concat(b), []).sort()
-  return body
-}
-
-function claimer(maxEnergy) {
-  return [CLAIM, CLAIM, MOVE, MOVE]
-}
-
-function ranger(maxEnergy) {
-  return [TOUGH, TOUGH, TOUGH, MOVE, MOVE, MOVE, MOVE, MOVE, RANGED_ATTACK, HEAL]
 }

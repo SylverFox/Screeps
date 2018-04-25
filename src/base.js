@@ -1,7 +1,7 @@
 const towermaster = require('./towermaster')
-const sSpawning = require('./strategy.spawning')
-const sExpansion = require('./strategy.expansion')
-const Creeps = require('./creeps')
+const sSpawning = require('./strategies/spawning')
+const Creeps = require('./creeps/creeps')
+const ConstructionPlanner = require('./utils/constructionplanner')
 
 module.exports = class Base extends Room {
   constructor(room) {
@@ -11,11 +11,14 @@ module.exports = class Base extends Room {
 
   run() {
     // handle first spawn point
-    if(!this.spawns.length && this.memory.firstSpawn) {
+    if(!this.spawns.length) {
+      if(!this.memory.firstSpawn) {
+        return
+      }
       const pos = new RoomPosition(this.memory.firstSpawn.x, this.memory.firstSpawn.y, this.memory.firstSpawn.roomName)
       const result = this.createConstructionSite(pos, STRUCTURE_SPAWN)
       if(result !== OK && result !== ERR_RCL_NOT_ENOUGH) {
-        console.log('first spawn creation failed',result)
+        console.log('first spawn creation failed', result)
       }
       return
     }
@@ -31,8 +34,23 @@ module.exports = class Base extends Room {
     // work towers
     towermaster.work(this)
 
-    /*
+    // run outposts
+    this.outposts.map(o => Game.rooms[o]).filter(o => o).forEach(o => {
+      try {
+        o.outpost.run(this)
+      } catch(err) {
+        console.log(err, err.stack)
+      }
+    })
+
+
     // handle invasions
+    if(this.hostileCreeps.length) {
+      this.defcon = DEFCON_4
+    } else {
+      this.defcon = DEFCON_5
+    }
+    /*
     for (let i in this.memory.invaders) {
       const invader = this.memory.invaders[i]
       if ((Game.time - invader.lastseen) > 100)
@@ -43,33 +61,51 @@ module.exports = class Base extends Room {
     }
     */
 
-    if (Game.time % CREEP_SPAWN_INTERVAL === 0) this.handleCreepSpawning()
-    if (Game.time % EXPANSION_INTERVAL === 0) this.handleExpansion()
-    //console.log(this.income, this.expense)
+    if (Game.time % CREEP_SPAWN_INTERVAL === 0) this._handleCreepSpawning()
+    if (Game.time % EXPANSION_INTERVAL === 0) this._handleExpansion()
+
+    // draw stuff
+    this.sources.filter(s => s.container).forEach(
+      s => this.visual.text(s.container.store[RESOURCE_ENERGY], s.container.pos)
+    )
+    if(this.memory.nextCreeps && this.memory.nextCreeps.length) {
+      this.visual.text('next creeps: '+JSON.stringify(this.memory.nextCreeps), 10, 10, {align: 'left'})
+    }
+
+    // draw visuals
+    this.visual.text('test text', 0, 0, {color: 'red', font: 0.8})
+    this.visual.text('test text', 0, 10, {color: 'blue', font: 1.0})
+    this.visual.text('test text', 0, 20, {color: 'green', font: 1.2})
   }
 
-  handleCreepSpawning() {
+  _handleCreepSpawning() {
+    const firstAvailableSpawn = this.spawns.find(s => !s.spawning)
+    if(!firstAvailableSpawn)
+      return
+
     const newCreep = sSpawning.run(this)
 
-    if (newCreep === sSpawning.ERR_NEED_MORE_ENERGY) {
+    this.savingEnergy = false
+    if (newCreep === sSpawning.ERR_NEED_MORE_ENERGY && this.energyAvailable < this.energyCapacityAvailable) {
       this.savingEnergy = true
-    } else if (newCreep === sSpawning.ERR_NO_CREEP_TO_SPAWN) {
-      this.savingEnergy = false
     } else if (newCreep && newCreep.body) {
-      const firstAvailableSpawn = this.spawns.find(s => !s.spawning)
-      if (firstAvailableSpawn) {
-        this.savingEnergy = false
-        const name = this.name + Game.time
-        newCreep.memory.home = this.name
-        const result = firstAvailableSpawn.spawnCreep(newCreep.body, name, {
-          memory: newCreep.memory
-        })
-      }
+      const name = newCreep.memory.role + this.name + Game.time
+      newCreep.memory.home = this.name
+      const result = firstAvailableSpawn.spawnCreep(newCreep.body, name, {
+        memory: newCreep.memory
+      })
     }
   }
 
-  handleExpansion() {
-    const constructionJobs = sExpansion.run(this)
+  _handleExpansion() {
+    const constructionplanner = new ConstructionPlanner(this)
+
+    if (!this.memory.constructionPlan) {
+       constructionplanner.build()
+    }
+
+    const constructionJobs = constructionplanner.retrieve()
+
     if (constructionJobs && constructionJobs.length) {
       for (let job of constructionJobs) {
         const result = job.pos.createConstructionSite(job.type)
@@ -84,20 +120,14 @@ module.exports = class Base extends Room {
   }
 
   getCreepTargetsByRole(creepRole) {
-    return this.creeps.filter(c => c.role === creepRole).map(c =>
-      c.target
+    return this.creeps.filter(c => c.role === creepRole).map(
+      c => c.target
     ).filter(c => c)
   }
 
-  getCreepTargetsByType(creepType) {
-    return this.creeps.filter(c => c instanceof creepType).map(c =>
-      c.target
-    ).filter(c => c)
-  }
-
-  getCreepJobsByType(creepType) {
-    return this.creeps.filter(c => c instanceof creepType).map(c =>
-      c.job
+  getCreepJobsByRole(creepRole) {
+    return this.creeps.filter(c => c.role === creepRole).map(
+      c => c.job
     ).filter(c => c)
   }
 
@@ -140,32 +170,51 @@ module.exports = class Base extends Room {
 
   get damagedStructures() {
     if(!this._damagedStructures)
-      this._damagedStructures = this.rooms.map(r => r.structures).reduce(
-        (a, b) => a.concat(b), []
-      ).filter(s => {
+      this._damagedStructures = this.structures.filter(s => {
         if(s.structureType === STRUCTURE_WALL)
           return s.hits < s.hitsMax * 0.0001
         else if(s.structureType === STRUCTURE_RAMPART)
           return s.hits < s.hitsMax * 0.1
         else
-          return s.hits < s.hitsMax * 0.9
+          return s.hits < s.hitsMax * 0.75
       }).sort((a,b) => a.hits/a.hitsMax - b.hits/b.hitsMax)
     return this._damagedStructures
   }
 
-  get myConstructionSites() {
-    if (!this._myConstructionSites) {
-      this._myConstructionSites = this.rooms.map(r =>
-        r.find(FIND_MY_CONSTRUCTION_SITES)
+  get baseRepairableStructures() {
+    if(!this._baseRepairableStructures) {
+      this._baseRepairableStructures = this.rooms.map(r => r.structures).reduce(
+        (a, b) => a.concat(b), []
+      ).filter(
+        s => s.hits < s.hitsMax
+      ).sort((a,b) => a.hits/a.hitsMax - b.hits/b.hitsMax)
+    }
+    return this._baseRepairableStructures
+  }
+
+  get baseConstructionSites() {
+    if (!this._baseConstructionSites) {
+      this._baseConstructionSites = this.rooms.map(r =>
+        r.myConstructionSites
       ).reduce((a, b) => a.concat(b), [])
     }
-    return this._myConstructionSites
+    return this._baseConstructionSites
+  }
+
+  get repairableDefenses() {
+    if(!this._repairableDefenses) {
+      this._repairableDefenses = this.structures.filter(
+        s => [STRUCTURE_WALL, STRUCTURE_RAMPART].includes(s.structureType) && s.hits < s.hitsMax
+      )
+      this._repairableDefenses.sort((a, b) => a.hits/a.hitsMax - b.hits/b.hitsMax)
+    }
+    return this._repairableDefenses
   }
 
   get income() {
     if(!this._income) {
       let income = this.creeps.filter(c =>
-        c.memory.role === 'miner'
+        c.memory.role === Creeps.HOME_MINER
       ).length * 5 * HARVEST_POWER
 
       // add additional income for buffered storage
@@ -179,13 +228,23 @@ module.exports = class Base extends Room {
 
   get expense() {
     if(!this._expense) {
-      this._expense = this.creeps.filter(c => c.memory.role === 'mechanic').map(c => c.body)
-        .reduce((a,b) => a.concat(b), []).filter(bp => bp.type === WORK).length
+      if(this.creeps.length) {
+        this._expense = this.creeps.filter(c => c.memory.role === Creeps.HOME_MECHANIC).map(
+          c => c.body
+        ).reduce((a,b) => a.concat(b), []).filter(bp => bp.type === WORK).length
 
-      this._expense += this.creeps.map(c => c.body).reduce((a,b) => a.concat(b), [])
-        .map(p => BODYPART_COST[p.type]).reduce((a,b) => a+b) / CREEP_LIFE_TIME
+        this._expense = this.creeps.filter(c => c.memory.role === Creeps.HOME_UPGRADER).map(
+          c => c.body
+        ).reduce((a, b) => a.concat(b), []).filter(bp => bp.type === WORK).length
 
-      this._expense += this.memory.towersIdle ? 0 : this.towers.length * TOWER_ENERGY_COST
+        this._expense += this.creeps.map(c => c.body).reduce((a,b) => a.concat(b), []).map(
+          p => BODYPART_COST[p.type]
+        ).reduce((a,b) => a+b) / CREEP_LIFE_TIME
+
+        this._expense += this.memory.towersIdle ? 0 : this.towers.length * TOWER_ENERGY_COST
+      } else {
+        this._expense = 0
+      }
     }
     return this._expense
   }
@@ -203,26 +262,20 @@ module.exports = class Base extends Room {
     return this._rooms
   }
 
-  get roomsToScout() {
-    if(!this._roomsToScout) {
-      this._roomsToScout = [
-        this.top, this.right, this.bottom, this.left,
-        this.topleft, this.topright, this.bottomright, this.bottomleft
-      ].filter(r => r && !Game.rooms[r])
+  get otherRooms() {
+    if(!this._otherRooms) {
+      this._otherRooms = this.rooms.filter(r => r.name !== this.name)
     }
-    return this._roomsToScout
+    return this._otherRooms
   }
 
   get roomsToClaim() {
     if(!this._roomsToClaim) {
-      this._roomsToClaim = [
-        this.top, this.right, this.bottom, this.left
-      ].map(r => Game.rooms[r]).filter(r => r && r.controller).filter(r => {
-          const res = r.controller.reservation
-          return res ? (
-            res.username === USERNAME && res.ticksToEnd < (0.8 * CONTROLLER_RESERVE_MAX)
-          ) : true
-      })
+      this._roomsToClaim = this.outposts.filter(
+        o => !Game.rooms[o] ||
+        !Game.rooms[o].controller.reservation ||
+        Game.rooms[o].controller.reservation.ticksToEnd < 0.8 * CONTROLLER_RESERVE_MAX
+      )
     }
     return this._roomsToClaim
   }
@@ -233,57 +286,70 @@ module.exports = class Base extends Room {
     return this._baseSources
   }
 
+  get outpostSources() {
+    if(!this._outpostSources)
+      this._outpostSources = this.outposts.map(o => Game.rooms[o]).filter(r => r).map(
+        r => r.sources
+      ).reduce((a, b) => a.concat(b), [])
+    return this._outpostSources
+  }
+
   get hostileCreeps() {
     return this.rooms.map(r => r.find(FIND_HOSTILE_CREEPS)).reduce((a,b) => a.concat(b), [])
   }
 
   // spawns, extensions, towers
-  get primaryStorages() {
-    if(!this._primaryStorages) {
-      this._primaryStorages = this.myStructures.filter(s =>
-        [STRUCTURE_SPAWN, STRUCTURE_EXTENSION, STRUCTURE_TOWER].includes(s.structureType)
-      )
+  get basePrimaryStorages() {
+    if(!this._basePrimaryStorages) {
+      this._basePrimaryStorages = this.primaryStorages
     }
-    return this._primaryStorages
+    return this._basePrimaryStorages
   }
 
   // storage and containers not next to sources and minerals
-  get secondaryStorages() {
-    if(!this._secondaryStorages) {
-      this._secondaryStorages = this.structures.filter(s =>
-        s.structureType === STRUCTURE_CONTAINER &&
-        !this.tertiaryStorages.includes(s)
-      )
-      //if(this.storage)
-      //  this._secondaryStorages.push(this.storage)
+  get baseSecondaryStorages() {
+    if(!this._baseSecondaryStorages) {
+      this._baseSecondaryStorages = this.secondaryStorages
     }
-    return this._secondaryStorages
+    return this._baseSecondaryStorages
   }
 
   // active provider containers,
-  get tertiaryStorages() {
-    if(!this._tertiaryStorages) {
-      this._tertiaryStorages = this.baseSources.map(s => s.container).filter(s => s)
+  get baseTertiaryStorages() {
+    if(!this._baseTertiaryStorages) {
+      this._baseTertiaryStorages = this.baseSources.map(s => s.container).filter(s => s)
     }
-    return this._tertiaryStorages
+    return this._baseTertiaryStorages
   }
 
-  get drops() {
-    if(!this._drops) {
-      this._drops = this.find(FIND_DROPPED_RESOURCES)
+  get baseDrops() {
+    if(!this._baseDrops) {
+      this._baseDrops = this.rooms.map(r => r.drops).reduce(
+        (a, b) => a.concat(b), []
+      ).filter(d => d)
     }
-    return this._drops
+    return this._baseDrops
   }
 
-  get storeTargets() {
-    if(!this._storeTargets) {
-      const primary = this.primaryStorages.filter(s => s.freeSpace)
-      const secondary = this.secondaryStorages.filter(s => s.freeSpace)
-      if(primary.length)
-        this._storeTargets = primary
-      else if(secondary)
-        this._storeTargets = secondary
+  get outposts() {
+    if(!this._outposts) {
+      if(!this.memory.outposts)
+        this.memory.outposts = []
+      this._outposts = this.memory.outposts
     }
-    return this._storeTargets
+    return this._outposts
+  }
+
+  get defcon() {
+    if(!this._defcon)
+      if(!this.memory.defcon)
+        this.memory.defcon = DEFCON_5
+      this._defcon = this.memory.defcon
+    return this._defcon
+  }
+
+  set defcon(defcon) {
+    this._defcon = defcon
+    this.memory.defcon = defcon
   }
 }

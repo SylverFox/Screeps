@@ -1,4 +1,4 @@
-const sOutpostExpansion = require('./strategy.outpost.expansion')
+const sOutpostExpansion = require('./strategies/outpost.expansion')
 
 module.exports = class Outpost extends Room {
   constructor(room) {
@@ -6,13 +6,25 @@ module.exports = class Outpost extends Room {
     Object.assign(this, room)
   }
 
-  run() {
-    if (Game.time % OUTPOST_EXPANSION_INTERVAL === 0)
+  run(base) {
+    this.ownedbase = base
+
+    if (Game.time % OUTPOST_EXPANSION_INTERVAL === 0) {
       this.handleOutpostExpansion()
+    }
+
+    this.sources.filter(s => s.container).forEach(
+      s => this.visual.text(s.container.store[RESOURCE_ENERGY], s.container.pos)
+    )
+    this.structures.filter(s => s.hits < s.hitsMax * 0.9).forEach(
+      s => this.visual.circle(s.pos, {fill: 'transparent', stroke: 'red'})
+    )
   }
 
   handleOutpostExpansion() {
+    this.memory.constructionCompleted = false
     const constructionJobs = sOutpostExpansion.run(this)
+
     if (constructionJobs && constructionJobs.length) {
       for (let job of constructionJobs) {
         const result = job.pos.createConstructionSite(job.type)
@@ -21,22 +33,8 @@ module.exports = class Outpost extends Room {
         else
           console.log('new construction job', job.type, 'failed at (', job.pos.x, ',', job.pos.y, '), reason: ' + result)
         }
+    } else {
+      this.memory.constructionCompleted = true
     }
-  }
-
-  get constructionSites() {
-    if(!this._constructionSites)
-      this._constructionSites = this.find(FIND_MY_CONSTRUCTION_SITES)
-    return this._constructionSites
-  }
-
-  get bases() {
-    if(!this._bases) {
-      const exits = Game.map.describeExits(this.name)
-      this._bases = Object.keys(exits).map(e => Game.rooms[exits[e]]).filter(r =>
-        r && r.base
-      ).map(r => r.base)
-    }
-    return this._bases
   }
 }
