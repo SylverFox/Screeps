@@ -1,19 +1,26 @@
 {
-  "name": "Screeps AI",
+  "name": "screeps-ai",
   "version": "1.0.0",
-  "description": "Screeps AI",
-  "dependencies": {
-    "grunt": "^1.0.1",
-    "grunt-contrib-copy": "^1.0.0",
-    "grunt-contrib-watch": "^1.0.0",
-    "grunt-screeps": "^1.3.0"
-  },
-  "devDependencies": {},
-  "scripts": {},
+  "description": "AI for the MMO Screeps",
+  "author": "SylverFox",
+  "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://SylverFox@github.com/SylverFox/Screeps.git"
+    "url": "https://github.com/SylverFox/Screeps.git"
   },
-  "author": "",
-  "license": ""
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prod": "gulp production",
+    "dev": "gulp watch"
+  },
+  "devDependencies": {
+    "gulp": "^3.9.1",
+    "gulp-clean": "^0.4.0",
+    "gulp-flatten": "^0.4.0",
+    "gulp-flatten-requires": "^1.0.0",
+    "gulp-screeps": "^1.0.8",
+    "screeps-profiler": "^2.0.1",
+    "screeps-typescript-declarations": "^4.2.1"
+  },
+  "dependencies": {}
 }
