@@ -3,12 +3,12 @@
  */
 
 module.exports = class Worldmap {
-  TOP_MASK = 0b001
-  RIGHT_MASK = 0b0010
-  BOTTOM_MASK = 0b0100
-  LEFT_MASK = 0b1000
-
   constructor() {
+    this.TOP_MASK = 0b001
+    this.RIGHT_MASK = 0b0010
+    this.BOTTOM_MASK = 0b0100
+    this.LEFT_MASK = 0b1000
+
     // import from memory
     this.worldmap = Memory.worldmap || {}
     // update world map

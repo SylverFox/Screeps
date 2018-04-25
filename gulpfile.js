@@ -1,5 +1,5 @@
 const gulp = require('gulp')
-const clean = require('gulp-clean') //TODO
+const clean = require('gulp-clean')
 const flatten = require('gulp-flatten')
 const flattenRequires = require('gulp-flatten-requires')
 const screeps = require('gulp-screeps')
@@ -15,11 +15,11 @@ gulp.task('production', () => {
 })
 
 gulp.task('clean', () => {
-  return gulp.src(config.dst).pipe(clean())
+  return gulp.src(config.dst+'*').pipe(clean())
 })
 
 gulp.task('build', ['clean'], (done) => {
-  return gulp.src(config.dst)
+  return gulp.src(config.src)
     .pipe(flatten())
     .pipe(flattenRequires())
     .on('error', done)
@@ -27,11 +27,11 @@ gulp.task('build', ['clean'], (done) => {
 })
 
 gulp.task('push_private', ['build'], () => {
-  return gulp.src(config.dst)
+  return gulp.src(config.dst+'*')
     .pipe(screeps(config.dev))
 })
 
 gulp.task('push_main', ['build'], () => {
-  return gulp.src(config.dst)
+  return gulp.src(config.dst+'*')
     .pipe(screeps(config.main))
 })
