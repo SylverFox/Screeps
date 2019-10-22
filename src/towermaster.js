@@ -15,9 +15,6 @@ exports.work = function(base) {
 
 /*
  * work towers
- * Prio 1: heal my creeps
- * Prio 2: attack hostile creeps
- * Prio 3: repair severly damaged structures
  */
 function workTower(tower, saving) {
   // heal creeps

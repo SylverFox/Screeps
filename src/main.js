@@ -3,21 +3,23 @@
 require('./prototypes/room')
 require('./prototypes/source')
 require('./prototypes/storage')
-require('./prototypes/traveler')
 require('./config')
 require('./constants')
 
+const Worldmap = require('./utils/worldmap')
 const Empire = require('./empire')
-console.log('test')
-exports.loop = function() {
+
+exports.loop = function () {
   //handle dead screeps
-  for(let i in Memory.creeps) {
-    if(!Game.creeps[i]) {
+  for (let i in Memory.creeps) {
+    if (!Game.creeps[i]) {
       delete Memory.creeps[i]
     }
   }
 
-  console.log(`Game time: ${Game.ticks}`)
-  //Game.empire = new Empire()
-  //Game.empire.run()
+  Game.worldmap = new Worldmap()
+  Game.worldmap.update()
+
+  Game.empire = new Empire()
+  Game.empire.run()
 }

@@ -1,70 +1,29 @@
 /**
  * Holds information about the world that has been explored
  */
+const Roominfo = require('./roominfo')
 
 module.exports = class Worldmap {
   constructor() {
-    this.TOP_MASK = 0b001
-    this.RIGHT_MASK = 0b0010
-    this.BOTTOM_MASK = 0b0100
-    this.LEFT_MASK = 0b1000
-
-    // import from memory
     this.worldmap = Memory.worldmap || {}
-    // update world map
-    this.update()
-    // store in memory
-    Memory.worldmap = this.worldmap
   }
 
-  /**
-   * Updates the worldmap from available rooms
-   */
   update() {
-    console.log(Object.keys(this.worldmap).length)
-    Object.keys(Game.rooms).map(r => Game.rooms[r]).forEach(room => {
-      if (this.worldmap[room.name]) {
-        this.worldmap[room.name].lastseen = Game.time
+    Object.keys(Game.rooms).forEach(room => {
+      if (this.worldmap[room]) {
+        this.worldmap[room].lastseen = Game.time
       } else {
-        this.worldmap[room.name] = {
-          type: this.roomType(room.name),
-          exits: this.findExits(room.name),
-          lastseen: Game.time
-        }
+        this.worldmap[room] = Roominfo.all(room)
       }
     })
-    console.log(JSON.stringify(this.worldmap))
+    Memory.worldmap = this.worldmap
+    return `${Object.keys(this.worldmap).length} room(s) updated`
   }
 
-  /**
-   * Retrieves the type of the room
-   * @param room Name of the room
-   */
-  roomType(room) {
-    let type = ROOM_TYPE_UKNOWN
-
-    if (this.worldmap[room] && this.worldmap[room].type) {
-      type = this.worldmap[room].type
-    } else if (Game.rooms[room]) {
-      const r = Game.rooms[room]
-      if (!r.controller && r.sources.length) {
-        type = ROOM_TYPE_SOURCE_KEEPERS
-      } else if (!r.controller) {
-        type = ROOM_TYPE_EMPTY
-      } else if (r.controller.my) {
-        type = ROOM_TYPE_MY_BASE
-      } else if (r.controller.owner) {
-        type = ROOM_TYPE_HOSTILE_BASE
-      } else if (r.controller.reservation && r.controller.reservation.username === USERNAME) {
-        type = ROOM_TYPE_MY_OUTPOST
-      } else if (r.controller.reservation && r.controller.reservation.username !== USERNAME) {
-        type = ROOM_TYPE_HOSTILE_OUTPOST
-      } else if (r.sources.length) {
-        type = ROOM_TYPE_FARM
-      }
-    }
-
-    return type
+  clean() {
+    this.worldmap = {}
+    Memory.worldmap = {}
+    return this.update()
   }
 
   /**
@@ -94,24 +53,39 @@ module.exports = class Worldmap {
   }
 
   /**
-   * Finds the exits of the room
-   * @param room Room name
+   * Retrieves the info from the room from the worldmap
+   * @param {string} room the room name
    */
-  findExits(room) {
-    let exits = 0
-    const e = Game.map.describeExits(room)
+  roomInfo(room) {
+    return this.worldmap[room] || {}
+  }
 
-    if (e[TOP])
-      exits |= Worldmap.TOP_MASK
-    if (e[RIGHT])
-      exits |= Worldmap.RIGHT_MASK
-    if (e[BOTTOM])
-      exits |= Worldmap.BOTTOM_MASK
-    if (e[LEFT])
-      exits |= Worldmap.LEFT_MASK
+  highestQualityBase() {
+    let highestQualityBase = ''
+    let maxBQI = 0
+    for(const room in this.worldmap) {
+      const r = this.worldmap[room]
+      if(r.type !== ROOM_TYPE_MY_BASE && r.bqi > maxBQI) {
+        maxBQI = r.bqi
+        highestQualityBase = room
+      }
+    }
+    return highestQualityBase
+  }
 
-    return exits
+  /**
+   * retrieves my bases
+   */
+  get bases() {
+    if (!this._bases) {
+      let bases = []
+      for (const r in this.worldmap) {
+        if (this.worldmap[r].type === ROOM_TYPE_MY_BASE && Game.rooms[r]) {
+          bases.push(Game.rooms[r])
+        }
+      }
+      this._bases = bases
+    }
+    return this._bases
   }
 }
-
-

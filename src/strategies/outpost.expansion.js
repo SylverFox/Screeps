@@ -1,4 +1,4 @@
-const Map = require('../utils/map')
+const Map = require('../utils/roommap')
 
 exports.run = function(outpost) {
   if (!outpost.memory.constructionPlan) {

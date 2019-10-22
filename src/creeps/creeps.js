@@ -17,6 +17,8 @@ const Settler = require('./world/settler')
 
 const Ranger = require('./military/ranger')
 
+const SimpleWorker = require('./simpleworker')
+
 exports.ERR_NOT_ENOUGH_ENERGY = -1
 exports.ERR_INVALID_ROLE = -2
 
@@ -34,7 +36,8 @@ exports.CREEP_ROLES = [
   exports.BASE_BUILDER = 'baseBuilder',
   exports.SETTLER = 'settler',
   exports.RANGER = 'ranger',
-  exports.DISTRIBUTOR = 'distributor'
+  exports.DISTRIBUTOR = 'distributor',
+  exports.SIMPLEWORKER = 'simpleworker'
 ]
 
 const roleToCreepMap = {
@@ -51,7 +54,8 @@ const roleToCreepMap = {
   [exports.BASE_BUILDER]: BaseBuilder,
   [exports.SETTLER]: Settler,
   [exports.RANGER]: Ranger,
-  [exports.DISTRIBUTOR]: Distributor
+  [exports.DISTRIBUTOR]: Distributor,
+  [exports.SIMPLEWORKER]: SimpleWorker
 }
 
 exports.from = function(creep) {
